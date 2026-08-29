@@ -11,7 +11,7 @@ class LegalScreen extends StatelessWidget {
 
   static const _privacyPolicyUrl = String.fromEnvironment(
     'PRIVACY_POLICY_URL',
-    defaultValue: 'https://sajdadailyathan.site/privacy',
+    defaultValue: 'https://sajda-privacy.onrender.com',
   );
 
   Future<void> _openPrivacyPolicy(BuildContext context) async {
