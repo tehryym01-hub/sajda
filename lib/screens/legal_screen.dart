@@ -100,6 +100,13 @@ class LegalScreen extends StatelessWidget {
                 _licenseRow('url_launcher', 'BSD-3', 'https://pub.dev/packages/url_launcher'),
                 _licenseRow('in_app_review', 'BSD-3', 'https://pub.dev/packages/in_app_review'),
                 _licenseRow('path_provider', 'BSD-3', 'https://pub.dev/packages/path_provider'),
+                _licenseRow('flutter_map', 'BSD-3', 'https://pub.dev/packages/flutter_map'),
+                _licenseRow('latlong2', 'BSD-2', 'https://pub.dev/packages/latlong2'),
+                _licenseRow('hijri', 'MIT', 'https://pub.dev/packages/hijri'),
+                _licenseRow('timezone_finder', 'MIT', 'https://pub.dev/packages/timezone_finder'),
+                _licenseRow('uuid', 'MIT', 'https://pub.dev/packages/uuid'),
+                _licenseRow('intl', 'BSD-3', 'https://pub.dev/packages/intl'),
+                _licenseRow('flutter_localizations', 'BSD-3', 'https://flutter.dev'),
                 const SizedBox(height: 12),
                  Text(
                    state.t('Content Attribution', 'مواد کی تشریح'),

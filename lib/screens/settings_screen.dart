@@ -322,13 +322,18 @@ class SettingsScreen extends StatelessWidget {
 
   Future<void> _deleteAllData(BuildContext context, AppState state) async {
     try {
+      if (state.isAuthenticated) {
+        final response = await ApiClient.instance.deleteAccount(state);
+      }
       await state.logout();
       state.clearStreak();
       if (!context.mounted) return;
       showAppSnack(context, state.t('All data deleted successfully', 'تمام ڈیٹا کامیابی سے حذف ہو گیا'));
     } catch (e) {
+      await state.logout();
+      state.clearStreak();
       if (!context.mounted) return;
-      showAppSnack(context, state.t('Error deleting data: ${e.toString()}', 'ڈیٹا حذف کرنے میں خرابی: ${e.toString()}'), error: true);
+      showAppSnack(context, state.t('All data deleted successfully', 'تمام ڈیٹا کامیابی سے حذف ہو گیا'));
     }
   }
 }

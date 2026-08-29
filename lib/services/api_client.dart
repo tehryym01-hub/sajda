@@ -407,5 +407,14 @@ class ApiClient {
   Future<void> revokeInvite(String id) async {
     await _post('/streak/shared/$id/revoke-invite', {});
   }
+
+  // ---------- Account ----------
+
+  Future<void> deleteAccount(AppState state) async {
+    await http.delete(
+      Uri.parse('$_base/auth/account'),
+      headers: _headers(),
+    ).timeout(const Duration(seconds: 15));
+  }
 }
 

@@ -81,6 +81,36 @@ export const getProfile = async (req, res, next) => {
   }
 };
 
+export const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const deviceId = user.deviceId;
+
+    await user.deleteOne();
+
+    const Streak = (await import('../models/Streak.js')).default;
+    const SharedStreak = (await import('../models/SharedStreak.js')).default;
+    const StreakMember = (await import('../models/StreakMember.js')).default;
+    const PrayerCompletion = (await import('../models/PrayerCompletion.js')).default;
+
+    await Promise.all([
+      Streak.deleteMany({ userId }),
+      SharedStreak.deleteMany({ creatorId: userId }),
+      StreakMember.deleteMany({ userId }),
+      PrayerCompletion.deleteMany({ userId }),
+    ]);
+
+    res.json({ success: true, message: 'Account and all associated data deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user?.id || req.user?._id;
