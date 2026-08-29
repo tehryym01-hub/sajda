@@ -18,11 +18,9 @@ import duaRoutes from './routes/duaRoutes.js';
 import wazifaRoutes from './routes/wazifaRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import hijriRoutes from './routes/hijriRoutes.js';
-import pushRoutes from './routes/push.js';
 import authRoutes from './routes/auth.js';
 import streakRoutes from './routes/streakRoutes.js';
 import quranRoutes from './routes/quranRoutes.js';
-import { startPushCron } from './services/pushCron.js';
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -67,7 +65,7 @@ const distPath = join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Sajda\ API\ is\ running' });
+  res.json({ status: 'ok', message: 'Sajda API is running' });
 });
 
 app.use('/api/prayers', checkDBConnection, prayerRoutes);
@@ -77,7 +75,6 @@ app.use('/api/duas', checkDBConnection, duaRoutes);
 app.use('/api/wazifas', checkDBConnection, wazifaRoutes);
 app.use('/api/admin', checkDBConnection, adminRoutes);
 app.use('/api/hijri', checkDBConnection, hijriRoutes);
-app.use('/api/push', checkDBConnection, pushRoutes);
 app.use('/api/auth', checkDBConnection, authRoutes);
 app.use('/api/streak', authenticateToken, checkDBConnection, streakRoutes);
 app.use('/api/quran', checkDBConnection, quranRoutes);
@@ -105,14 +102,13 @@ function startKeepAlive() {
 
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`Sajda\ server\ running\ on\ port ${PORT}`);
-    startPushCron();
+    console.log(`Sajda server running on port ${PORT}`);
     startKeepAlive();
   });
 }).catch((err) => {
   console.error('Failed to start server:', err.message);
   app.listen(PORT, () => {
-    console.log(`Sajda\ server\ running\ on\ port ${PORT} (without database)`);
+    console.log(`Sajda server running on port ${PORT} (without database)`);
     startKeepAlive();
   });
 });

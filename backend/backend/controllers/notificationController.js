@@ -29,7 +29,6 @@ export async function buildSchedule(city = 'Karachi', country = 'Pakistan') {
     return {
       prayer: prayer.name,
       time: prayer.time,
-      hadith: null,
     };
   });
 

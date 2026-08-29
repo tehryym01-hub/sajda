@@ -1,7 +1,6 @@
 import Event from '../models/Event.js';
 import Dua from '../models/Dua.js';
 import ManualNotification from '../models/ManualNotification.js';
-import { sendPushManual } from '../services/push.js';
 
 export const getAdminStats = async (req, res, next) => {
   try {
@@ -78,8 +77,6 @@ export const deleteDua = async (req, res, next) => {
 export const createManualNotification = async (req, res, next) => {
   try {
     const notification = await ManualNotification.create(req.body);
-    // Also send as push to all subscribers
-    sendPushManual(req.body.title, req.body.body || '').catch(err => console.error('Push send error:', err.message));
     res.status(201).json({ success: true, data: notification });
   } catch (error) {
     next(error);

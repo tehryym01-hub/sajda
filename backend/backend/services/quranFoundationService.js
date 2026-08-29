@@ -6,7 +6,7 @@ const QF_CLIENT_SECRET = process.env.QF_CLIENT_SECRET || '';
 const QF_ENV = process.env.QF_ENV || 'prelive';
 
 if (!QF_CLIENT_ID || !QF_CLIENT_SECRET) {
-  throw new Error('Quran Foundation credentials not configured');
+  console.warn('Warning: Quran Foundation credentials not configured. Quran features will be limited.');
 }
 
 const BASE_URL =
