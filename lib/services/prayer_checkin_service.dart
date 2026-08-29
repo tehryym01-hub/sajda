@@ -1,0 +1,131 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+
+import '../services/api_client.dart';
+
+class PrayerCheckinService {
+  static final PrayerCheckinService instance = PrayerCheckinService._();
+  PrayerCheckinService._();
+
+  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  bool _initialized = false;
+
+  static const String _channelId = 'prayer_checkin';
+  static const String _channelName = 'Prayer Check-in';
+  static const String _channelDesc = 'Did you pray? Tap to confirm';
+
+  Future<void> init() async {
+    if (_initialized) return;
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosInit = DarwinInitializationSettings();
+    await _plugin.initialize(
+      settings: const InitializationSettings(android: androidInit, iOS: iosInit),
+      onDidReceiveNotificationResponse: _onResponse,
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundResponse,
+    );
+
+    if (_plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>() != null) {
+      _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    }
+
+    tzdata.initializeTimeZones();
+    _initialized = true;
+  }
+
+  Future<void> scheduleCheckIns(List<dynamic> prayers, {String timezone = 'Asia/Karachi'}) async {
+    await init();
+    await cancelAll();
+
+    final location = tz.getLocation(timezone);
+    final now = tz.TZDateTime.now(location);
+
+    for (final p in prayers) {
+      if (p.name == 'Sunrise') continue;
+      final parts = p.time.split(':');
+      if (parts.length != 2) continue;
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour == null || minute == null) continue;
+
+      var prayerTime = tz.TZDateTime.from(DateTime(now.year, now.month, now.day, hour, minute), location);
+      if (prayerTime.isBefore(now)) {
+        prayerTime = prayerTime.add(const Duration(days: 1));
+      }
+
+      final checkInTime = prayerTime.add(const Duration(hours: 1));
+
+      await _plugin.zonedSchedule(
+        id: _idFor(p.name),
+        title: 'Did you pray?',
+        body: 'Did you complete ${p.name} prayer?',
+        scheduledDate: checkInTime,
+        notificationDetails: _details(p.name),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: jsonEncode({'prayer': p.name, 'timezone': timezone}),
+      );
+    }
+  }
+
+  Future<void> cancelAll() async {
+    if (!_initialized) return;
+    const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+    for (final p in prayers) {
+      await _plugin.cancel(id: _idFor(p));
+    }
+  }
+
+  int _idFor(String prayer) {
+    return prayer.hashCode & 0x7FFFFFFF;
+  }
+
+  NotificationDetails _details(String prayer) {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDesc,
+        importance: Importance.high,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.reminder,
+        autoCancel: true,
+        actions: const [
+          AndroidNotificationAction('yes', 'Haan'),
+          AndroidNotificationAction('no', 'Nahi'),
+        ],
+      ),
+      iOS: const DarwinNotificationDetails(
+        categoryIdentifier: 'PRAYER_CHECKIN',
+      ),
+    );
+  }
+
+  static Future<void> _onResponse(NotificationResponse response) async {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      final prayer = data['prayer'] as String?;
+      final timezone = data['timezone'] as String?;
+      if (prayer == null || timezone == null) return;
+
+      if (response.actionId == 'yes') {
+        await ApiClient.instance.updatePrayerCompletion(
+          prayer: prayer,
+          completed: true,
+          timezone: timezone,
+        );
+      }
+    } catch (e) { debugPrint('PrayerCheckinService response: $e'); }
+  }
+
+  @pragma('vm:entry-point')
+  static Future<void> _onBackgroundResponse(NotificationResponse response) async {
+    await _onResponse(response);
+  }
+}
