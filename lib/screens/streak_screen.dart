@@ -222,6 +222,83 @@ class _StreakHomeState extends State<_StreakHome> {
     }
   }
 
+  void _showInviteInfoDialog(BuildContext context, AppState state, String appUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.group_add_rounded, color: Colors.white, size: 32),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                state.t('Invite Friends', 'دوستوں کو بلائیں'),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                state.t(
+                  'Share the app link with your friends so they can join your streak.',
+                  'اپنے دوستوں کو ایپ لنک شیئر کریں تاکہ وہ آپ کی سٹریک میں شامل ہو سکیں۔',
+                ),
+                style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      state.t('App Link', 'ایپ لنک'),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      appUrl,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(state.t('OK', 'ٹھیک ہے'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -295,13 +372,18 @@ class _StreakHomeState extends State<_StreakHome> {
                       // Invite Button
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDeep],
+                          ),
                           borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2)),
+                          ],
                         ),
                         child: IconButton(
                           onPressed: () {
+                            final appUrl = 'https://play.google.com/store/apps/details?id=com.sajda.dataplus';
                             if (state.sharedStreak != null && state.sharedStreak!.inviteCode.isNotEmpty) {
-                               final appUrl = 'https://sajdadailyathan.site';
                               showDialog(
                                 context: context,
                                 builder: (ctx) {
@@ -325,13 +407,11 @@ class _StreakHomeState extends State<_StreakHome> {
                                   );
                                 },
                               );
-                            } else if (state.sharedStreak == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(state.t('Create a shared streak first', 'پہلے شیر شد سٹریک بنائیں'))),
-                              );
+                            } else {
+                              _showInviteInfoDialog(context, state, appUrl);
                             }
                           },
-                          icon: Icon(Icons.group_add_rounded, color: Colors.white, size: 20),
+                          icon: const Icon(Icons.group_add_rounded, color: Colors.white, size: 20),
                           tooltip: state.t('Invite', 'انوائٹ'),
                         ),
                       ),

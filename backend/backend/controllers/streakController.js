@@ -141,6 +141,7 @@ export const getMyStreak = async (req, res, next) => {
           endDate: streak.endDate,
           status: streak.status,
           isShared: streak.isShared,
+          sharedStreakId: streak.sharedStreakId,
         },
         todayProgress,
         stats: { currentStreak, longestStreak, completionRate }

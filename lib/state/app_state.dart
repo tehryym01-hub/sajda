@@ -858,6 +858,17 @@ class AppState extends ChangeNotifier {
         'maghrib': today['maghrib'] == true,
         'isha': today['isha'] == true,
       };
+      if (_streak != null && _streak!.isShared && _streak!.sharedStreakId != null && _streak!.sharedStreakId!.isNotEmpty) {
+        try {
+          final sharedData = await ApiClient.instance.getSharedStreak(_streak!.sharedStreakId!);
+          final sharedJson = sharedData['sharedStreak'];
+          if (sharedJson != null) {
+            _sharedStreak = SharedStreakModel.fromJson(sharedJson as Map<String, dynamic>);
+          }
+          final members = sharedData['members'] as List<dynamic>? ?? [];
+          _sharedMembers = members.map((m) => StreakMemberModel.fromJson(m as Map<String, dynamic>)).toList();
+        } catch (_) {}
+      }
       _streakLoading = false;
       notifyListeners();
     } catch (e) {

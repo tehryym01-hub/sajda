@@ -209,7 +209,7 @@ class SharedStreakBoardScreen extends StatelessWidget {
   }
 
   Future<void> _showInviteDialog(BuildContext context, AppState state, SharedStreakModel shared) async {
-    final appUrl = 'https://sajdadailyathan.site';
+    final appUrl = 'https://play.google.com/store/apps/details?id=com.sajda.dataplus';
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
