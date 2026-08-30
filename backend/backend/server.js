@@ -16,7 +16,6 @@ import qiblaRoutes from './routes/qiblaRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import duaRoutes from './routes/duaRoutes.js';
 import wazifaRoutes from './routes/wazifaRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
 import hijriRoutes from './routes/hijriRoutes.js';
 import authRoutes from './routes/auth.js';
 import streakRoutes from './routes/streakRoutes.js';
@@ -54,7 +53,7 @@ app.use(helmet({
 app.use(compression());
 app.use(morgan('dev'));
 app.use(cors({
-  origin: '*',
+  origin: ['https://sajda-privacy.onrender.com'],
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -73,7 +72,6 @@ app.use('/api/qibla', checkDBConnection, qiblaRoutes);
 app.use('/api/events', checkDBConnection, eventRoutes);
 app.use('/api/duas', checkDBConnection, duaRoutes);
 app.use('/api/wazifas', checkDBConnection, wazifaRoutes);
-app.use('/api/admin', checkDBConnection, adminRoutes);
 app.use('/api/hijri', checkDBConnection, hijriRoutes);
 app.use('/api/auth', checkDBConnection, authRoutes);
 app.use('/api/streak', authenticateToken, checkDBConnection, streakRoutes);

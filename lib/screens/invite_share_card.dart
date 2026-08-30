@@ -42,7 +42,7 @@ class _InviteShareCardState extends State<InviteShareCard> {
 
   String _buildShareText() {
     final name = widget.creatorName != null ? '${widget.creatorName} invited you to join' : 'You are invited to join';
-    return '$name ${widget.streakTitle} 🔥\n\nPray together and stay consistent!\n\n📱 Download Sajda: Daily Athan & Qibla\n🔗 ${widget.appUrl}\n\nUse invite code: ${widget.inviteCode}';
+    return '$name ${widget.streakTitle}\n\nPray together and stay consistent!\n\nDownload Sajda: Daily Athan & Qibla\n${widget.appUrl}\n\nInvite code: ${widget.inviteCode}';
   }
 
   @override
@@ -51,15 +51,15 @@ class _InviteShareCardState extends State<InviteShareCard> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildCard(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          height: 52,
+          height: 48,
           child: FilledButton.icon(
             onPressed: _sharing ? null : _share,
             icon: _sharing
-                ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Icon(Icons.ios_share_rounded),
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                : const Icon(Icons.ios_share_rounded, size: 20),
             label: Text(_sharing ? 'Preparing...' : 'Share Invite Card'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -79,19 +79,19 @@ class _InviteShareCardState extends State<InviteShareCard> {
     return Container(
       width: cardWidth,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.4),
-            blurRadius: 32,
-            offset: const Offset(0, 16),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -103,181 +103,122 @@ class _InviteShareCardState extends State<InviteShareCard> {
             child: Stack(
               children: [
                 Positioned(
-                  top: -30,
-                  right: -30,
+                  top: -20,
+                  right: -20,
                   child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.05),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -40,
-                  left: -20,
-                  child: Container(
-                    width: 150,
-                    height: 150,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.04),
                     ),
                   ),
                 ),
+                Positioned(
+                  bottom: -25,
+                  left: -15,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.03),
+                    ),
+                  ),
+                ),
                 Padding(
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('🔥', style: TextStyle(fontSize: 16)),
-                            SizedBox(width: 8),
-                            Text(
-                              'SAJDA',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
-                                letterSpacing: 2,
-                              ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.mosque_rounded, color: AppColors.primary, size: 18),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'SAJDA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              letterSpacing: 2,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.6), width: 2.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.mosque_rounded, size: 40, color: AppColors.primary),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'YOU ARE INVITED TO JOIN',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                          letterSpacing: 3,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Text(
                         widget.streakTitle,
                         style: const TextStyle(
-                          fontSize: 28,
+                          fontSize: 22,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
                           height: 1.2,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 6),
+                      Text(
+                        'YOU ARE INVITED TO JOIN',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 1.5),
                         ),
                         child: Column(
                           children: [
                             Text(
                               'INVITE CODE',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 9,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
-                                letterSpacing: 3,
+                                letterSpacing: 2,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             Text(
                               widget.inviteCode,
                               style: const TextStyle(
-                                fontSize: 38,
+                                fontSize: 30,
                                 fontWeight: FontWeight.w900,
                                 color: Colors.white,
-                                letterSpacing: 6,
+                                letterSpacing: 5,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 14),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryDeep],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.group_add_rounded, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Join & Pray Together',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.phone_android_rounded, size: 16, color: AppColors.primary),
-                            SizedBox(width: 8),
+                            Icon(Icons.phone_android_rounded, size: 14, color: AppColors.primary),
+                            const SizedBox(width: 6),
                             Text(
-                              'SAJDA: Namaz & Qibla',
+                              'Sajda: Daily Athan & Qibla',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
                               ),
@@ -296,10 +237,3 @@ class _InviteShareCardState extends State<InviteShareCard> {
     );
   }
 }
-
-
-
-
-
-
-

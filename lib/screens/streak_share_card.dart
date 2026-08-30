@@ -46,22 +46,22 @@ class _StreakShareCardState extends State<StreakShareCard> {
     final shared = widget.sharedStreak;
     final memberCount = widget.sharedMembers.where((m) => m.isActive).length;
 
-    var text = '🔥 $name\'s Salah Streak\n\n';
-    text += '📅 ${widget.streak.currentStreak} day streak active!\n';
-    text += '🏆 Best: ${widget.streak.longestStreak} days\n';
-    text += '🎯 Goal: ${widget.streak.goalDays} days\n';
+    var text = '$name\'s Salah Streak\n\n';
+    text += '${widget.streak.currentStreak} day streak active!\n';
+    text += 'Best: ${widget.streak.longestStreak} days\n';
+    text += 'Goal: ${widget.streak.goalDays} days\n';
 
     if (shared != null && memberCount > 0) {
-      text += '\n👥 Praying with $memberCount ${memberCount == 1 ? 'friend' : 'friends'}\n';
+      text += '\nPraying with $memberCount ${memberCount == 1 ? 'friend' : 'friends'}\n';
       final top3 = widget.sharedMembers.where((m) => m.isActive).toList()
         ..sort((a, b) => b.currentDay.compareTo(a.currentDay));
       for (var i = 0; i < top3.length && i < 3; i++) {
-        text += '  ${i == 1 ? '🥇' : (i == 2 ? '🥈' : '🥉')} ${top3[i].displayName} - ${top3[i].currentDay} days\n';
+        text += '  ${top3[i].displayName} - ${top3[i].currentDay} days\n';
       }
     }
 
-    text += '\n📲 Join me on Sajda: Daily Athan & Qibla\n';
-    text += '🔗 https://sajdadailyathan.site';
+    text += '\nJoin me on Sajda: Daily Athan & Qibla\n';
+    text += 'https://play.google.com/store/apps/details?id=com.sajda.dataplus';
     return text;
   }
 
@@ -71,15 +71,15 @@ class _StreakShareCardState extends State<StreakShareCard> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildCard(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          height: 52,
+          height: 48,
           child: FilledButton.icon(
             onPressed: _sharing ? null : _share,
             icon: _sharing
-                ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Icon(Icons.ios_share_rounded),
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                : const Icon(Icons.ios_share_rounded, size: 20),
             label: Text(_sharing ? 'Preparing...' : 'Share Streak Card'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -104,19 +104,19 @@ class _StreakShareCardState extends State<StreakShareCard> {
     return Container(
       width: cardWidth,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.4),
-            blurRadius: 32,
-            offset: const Offset(0, 16),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -128,11 +128,11 @@ class _StreakShareCardState extends State<StreakShareCard> {
             child: Stack(
               children: [
                 Positioned(
-                  top: -40,
-                  right: -40,
+                  top: -20,
+                  right: -20,
                   child: Container(
-                    width: 140,
-                    height: 140,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.04),
@@ -140,11 +140,11 @@ class _StreakShareCardState extends State<StreakShareCard> {
                   ),
                 ),
                 Positioned(
-                  bottom: -50,
-                  left: -30,
+                  bottom: -25,
+                  left: -15,
                   child: Container(
-                    width: 180,
-                    height: 180,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.03),
@@ -152,118 +152,72 @@ class _StreakShareCardState extends State<StreakShareCard> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('🔥', style: TextStyle(fontSize: 16)),
-                            SizedBox(width: 8),
-                            Text(
-                              'SAJDA',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
-                                letterSpacing: 2,
-                              ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.mosque_rounded, color: AppColors.primary, size: 18),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'SAJDA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              letterSpacing: 2,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      if (widget.displayName != null && widget.displayName!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      if (widget.displayName != null && widget.displayName!.isNotEmpty)
                         Text(
-                          '${widget.displayName}',
+                          widget.displayName!,
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             height: 1.2,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'SALAH STREAK',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                            letterSpacing: 3,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ] else ...[
-                        Text(
-                          'SALAH STREAK',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
-                            letterSpacing: 3,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 2),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '${widget.streak.currentStreak}',
-                              style: const TextStyle(
-                                fontSize: 64,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                height: 1.0,
-                              ),
-                            ),
-                            Text(
-                              'DAY STREAK',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                                letterSpacing: 3,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 2),
+                      Text(
+                        'SALAH STREAK',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                          letterSpacing: 2,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          _StatItem(
+                            icon: Icons.local_fire_department_rounded,
+                            value: '${widget.streak.currentStreak}',
+                            label: 'Streak',
+                          ),
+                          Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.15)),
                           _StatItem(
                             icon: Icons.emoji_events_rounded,
                             value: '${widget.streak.longestStreak}',
                             label: 'Best',
                           ),
-                          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
+                          Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.15)),
                           _StatItem(
                             icon: Icons.flag_rounded,
                             value: '${widget.streak.goalDays}',
                             label: 'Goal',
                           ),
                           if (memberCount > 0) ...[
-                            Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
+                            Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.15)),
                             _StatItem(
                               icon: Icons.people_rounded,
                               value: '$memberCount',
@@ -272,69 +226,59 @@ class _StreakShareCardState extends State<StreakShareCard> {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                         child: LinearProgressIndicator(
                           value: (widget.streak.goalDays > 0 ? widget.streak.currentDay / widget.streak.goalDays : 0.0).clamp(0.0, 1.0),
-                          minHeight: 8,
+                          minHeight: 6,
                           backgroundColor: Colors.white.withValues(alpha: 0.2),
                           valueColor: const AlwaysStoppedAnimation(Colors.white),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
-                        '${widget.streak.currentDay} / ${widget.streak.goalDays} days completed',
+                        '${widget.streak.currentDay} / ${widget.streak.goalDays} days',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           color: Colors.white70,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (shared != null && topMembers.isNotEmpty) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.people_rounded, color: AppColors.primary, size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'PRAYING TOGETHER',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primary,
-                                      letterSpacing: 2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
                               ...topMembers.asMap().entries.map((entry) {
                                 final i = entry.key;
                                 final m = entry.value;
-                                final medal = i == 0 ? '🥇' : (i == 1 ? '🥈' : '🥉');
+                                final medal = i == 0 ? '1st' : (i == 1 ? '2nd' : '3rd');
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 3),
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
                                   child: Row(
                                     children: [
-                                      Text(medal, style: const TextStyle(fontSize: 14)),
+                                      Text(
+                                        medal,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
                                           m.displayName,
                                           style: const TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                             color: Colors.white,
                                           ),
@@ -345,7 +289,7 @@ class _StreakShareCardState extends State<StreakShareCard> {
                                       Text(
                                         '${m.currentDay}d',
                                         style: const TextStyle(
-                                          fontSize: 12,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                           color: AppColors.primary,
                                         ),
@@ -354,71 +298,27 @@ class _StreakShareCardState extends State<StreakShareCard> {
                                   ),
                                 );
                               }),
-                              if (memberCount > 3)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    '+${memberCount - 3} more',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white.withValues(alpha: 0.6),
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),
                       ],
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryDeep],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Join me on SAJDA',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.phone_android_rounded, size: 16, color: AppColors.primary),
-                            SizedBox(width: 8),
+                            Icon(Icons.phone_android_rounded, size: 14, color: AppColors.primary),
+                            const SizedBox(width: 6),
                             Text(
                               'Sajda: Daily Athan & Qibla',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
                               ),
@@ -447,34 +347,30 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 18),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primary, size: 16),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.white.withValues(alpha: 0.6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.6),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
-
-
-
-
-
-
-
