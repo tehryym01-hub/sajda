@@ -7,6 +7,8 @@ import '../services/custom_tasbeeh_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
+const _channel = MethodChannel('sajda/prayer_alarm');
+
 class TasbeehScreen extends StatefulWidget {
   const TasbeehScreen({super.key});
 
@@ -56,9 +58,15 @@ class _TasbeehScreenState extends State<TasbeehScreen> {
     });
   }
 
-  void _increment() {
+  void _increment() async {
     final state = context.read<AppState>();
-    if (state.tasbeehVibration) HapticFeedback.heavyImpact();
+    if (state.tasbeehVibration) {
+      try {
+        await _channel.invokeMethod('vibrate', {'duration': 50});
+      } catch (_) {
+        HapticFeedback.heavyImpact();
+      }
+    }
     setState(() {
       if (_count < _target) {
         _count++;

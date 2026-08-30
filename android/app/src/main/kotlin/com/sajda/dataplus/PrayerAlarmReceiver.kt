@@ -1,4 +1,4 @@
-package\ com\.sajda\.dataplus
+package com.sajda.dataplus
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

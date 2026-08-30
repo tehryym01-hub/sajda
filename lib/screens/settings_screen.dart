@@ -27,36 +27,34 @@ class SettingsScreen extends StatelessWidget {
         );
         return;
       }
+      await state.setNotificationsEnabled(true);
       try {
-        final times = await ApiClient.instance.getPrayerTimesFor(state);
+        final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
         await PrayerNotificationService.instance
             .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes);
-        await state.setNotificationsEnabled(true);
-        if (!context.mounted) return;
-        showAppSnack(context, state.t('Azan alerts enabled for all prayers', 'تمام نمازوں کے لیے اذان کے الرٹس فعال کر دیے گئے'));
       } catch (e) {
         if (!context.mounted) return;
         showAppSnack(context, state.t('Could not schedule alerts: ${e.toString()}', 'الرٹس شیڈول نہیں ہوئے: ${e.toString()}'), error: true);
       }
     } else {
-      await PrayerNotificationService.instance.cancelAll();
       await state.setNotificationsEnabled(false);
-      if (!context.mounted) return;
-      showAppSnack(context, state.t('Prayer alerts disabled', 'نماز کے الرٹس بند کر دیے گئے'));
+      await PrayerNotificationService.instance.cancelAll();
     }
+    if (!context.mounted) return;
+    showAppSnack(context, value
+        ? state.t('Azan alerts enabled for all prayers', 'تمام نمازوں کے لیے اذان کے الرٹس فعال کر دیے گئے')
+        : state.t('Prayer alerts disabled', 'نماز کے الرٹس بند کر دیے گئے'));
   }
 
   Future<void> _setPrayerMode(BuildContext context, String prayer, String mode) async {
     final state = context.read<AppState>();
     await state.setPrayerNotificationMode(prayer, mode);
     if (!context.mounted) return;
-    final times = await ApiClient.instance.getPrayerTimesFor(state);
-    await PrayerNotificationService.instance
-        .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes);
-    final label = mode == 'full' ? state.t('Full Azan', 'پورے اذان') : state.t('Silent', 'چپ چاپ');
-    if (context.mounted) {
-      showAppSnack(context, state.t('$prayer set to $label', '$prayer $label پر سیٹ'));
-    }
+    try {
+      final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
+      await PrayerNotificationService.instance
+          .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes);
+    } catch (_) {}
   }
 
   void _showLanguagePicker(BuildContext context, AppState state) {

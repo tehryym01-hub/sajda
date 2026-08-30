@@ -191,16 +191,14 @@ class PrayerNotificationService {
       );
 
   Future<void> _cancelPrayerIds() async {
+    final futures = <Future>[];
     for (var id = _notificationIdBase; id < _notificationIdBase + 10; id++) {
-      try {
-        await _plugin.cancel(id: id);
-      } catch (_) {} // benign cancel
+      futures.add(_plugin.cancel(id: id).catchError((_) {}));
     }
     for (var id = _reminderIdBase; id < _reminderIdBase + 10; id++) {
-      try {
-        await _plugin.cancel(id: id);
-      } catch (_) {} // benign cancel
+      futures.add(_plugin.cancel(id: id).catchError((_) {}));
     }
+    await Future.wait(futures);
   }
 
   Future<void> cancelAll() async {

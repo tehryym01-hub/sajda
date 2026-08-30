@@ -1,10 +1,13 @@
-package\ com\.sajda\.dataplus
+package com.sajda.dataplus
 
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -42,6 +45,25 @@ class MainActivity : FlutterActivity() {
                 "cancelAllAlarms" -> {
                     cancelAllPrayerAlarms(this)
                     result.success(true)
+                }
+
+                "vibrate" -> {
+                    val duration = call.argument<Long>("duration") ?: 50L
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                            val vibrator = vibratorManager.defaultVibrator
+                            vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
                 }
 
                 else -> result.notImplemented()

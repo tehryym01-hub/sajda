@@ -1,4 +1,4 @@
-package\ com\.sajda\.dataplus
+package com.sajda.dataplus
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
 
 class PrayerNotificationBootReceiver : BroadcastReceiver() {
     private val TAG = "PrayerBootReceiver"
-    private val CHANNEL = "com\.sajda\.dataplus/prayer_notifications"
+    private val CHANNEL = "com.sajda.dataplus/prayer_notifications"
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return

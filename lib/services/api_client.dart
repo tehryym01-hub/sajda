@@ -21,6 +21,24 @@ class ApiClient {
 
   final String _base = AppConfig.apiBaseUrl;
 
+  PrayerTimesResponse? _cachedPrayerTimes;
+  DateTime? _prayerTimesCacheTime;
+
+  PrayerTimesResponse? get cachedPrayerTimes {
+    if (_cachedPrayerTimes == null || _prayerTimesCacheTime == null) return null;
+    if (DateTime.now().difference(_prayerTimesCacheTime!) > const Duration(hours: 1)) {
+      _cachedPrayerTimes = null;
+      _prayerTimesCacheTime = null;
+      return null;
+    }
+    return _cachedPrayerTimes;
+  }
+
+  void invalidatePrayerTimesCache() {
+    _cachedPrayerTimes = null;
+    _prayerTimesCacheTime = null;
+  }
+
   Map<String, String> _headers() {
     final headers = <String, String>{'Content-Type': 'application/json'};
     final token = AuthService.instance.token;
@@ -99,7 +117,11 @@ class ApiClient {
     return PrayerTimesResponse.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  Future<PrayerTimesResponse> getPrayerTimesFor(AppState state) async {
+  Future<PrayerTimesResponse> getPrayerTimesFor(AppState state, {bool useCache = true}) async {
+    if (useCache) {
+      final cached = cachedPrayerTimes;
+      if (cached != null) return cached;
+    }
     final lat = state.lat ?? 0.0;
     final lng = state.lng ?? 0.0;
     final city = state.prayerCityParam;
@@ -111,14 +133,19 @@ class ApiClient {
     final method = state.prayerMethod;
     final school = state.asrSchool;
 
+    PrayerTimesResponse result;
     if (lat != 0.0 && lng != 0.0) {
       try {
-        return await _getAladhanPrayerTimes(lat, lng, timezone, dateStr, method, school);
+        result = await _getAladhanPrayerTimes(lat, lng, timezone, dateStr, method, school);
       } catch (_) {
-        return await getPrayerTimes(city, country);
+        result = await getPrayerTimes(city, country);
       }
+    } else {
+      result = await getPrayerTimes(city, country);
     }
-    return await getPrayerTimes(city, country);
+    _cachedPrayerTimes = result;
+    _prayerTimesCacheTime = DateTime.now();
+    return result;
   }
 
   Future<PrayerTimesResponse> _getAladhanPrayerTimes(
