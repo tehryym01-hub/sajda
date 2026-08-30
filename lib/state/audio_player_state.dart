@@ -94,7 +94,7 @@ class AudioPlayerState extends ChangeNotifier {
         QuranService.instance.verseAudioUrl(surah, ayah, reciterCode),
       );
       await _player.play();
-    } catch (e) { debugPrint('playVerse error: $e'); }
+    } catch (_) {}
   }
 
   Future<void> toggle() async {

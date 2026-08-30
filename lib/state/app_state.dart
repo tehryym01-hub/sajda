@@ -189,7 +189,7 @@ class AppState extends ChangeNotifier {
         _prayerNotificationModes = Map.fromEntries(
           map.entries.map((e) => MapEntry(e.key, e.value.toString())),
         );
-      } catch (e) { debugPrint('Parse prayerNotificationModes: $e'); }
+      } catch (_) {}
     }
     _tasbeehSound = prefs.getBool(_kTasbeehSound) ?? true;
     _tasbeehVibration = prefs.getBool(_kTasbeehVibration) ?? true;
@@ -254,7 +254,6 @@ class AppState extends ChangeNotifier {
   void _setupPrayerNotificationChannel() {
     _prayerChannel.setMethodCallHandler((call) async {
       if (call.method == 'reschedulePrayerNotifications') {
-        debugPrint('PrayerNotificationBootReceiver: Rescheduling prayer notifications...');
         await _rescheduleAllPrayerNotifications();
         return true;
       }
@@ -268,10 +267,7 @@ class AppState extends ChangeNotifier {
       final times = await ApiClient.instance.getPrayerTimesFor(this);
       await PrayerNotificationService.instance
           .scheduleAll(times.prayers, isUrdu: isUrdu, prayerModes: prayerNotificationModes);
-      debugPrint('Prayer notifications rescheduled successfully on boot');
-    } catch (e) {
-      debugPrint('Failed to reschedule prayer notifications on boot: $e');
-    }
+    } catch (_) {}
   }
 
   /// Auto-detect location from GPS.
@@ -340,7 +336,7 @@ class AppState extends ChangeNotifier {
       );
 
       await setLocation(loc, notify: true);
-    } catch (e) { debugPrint('detectLocation error: $e'); }
+    } catch (_) {}
   }
 
   /// Global forward geocoding search via Nominatim.
@@ -437,7 +433,7 @@ class AppState extends ChangeNotifier {
     try {
       final loc = findLocation(lat, lng);
       if (loc != null && loc.name.isNotEmpty) return loc.name;
-    } catch (e) { debugPrint('resolveTimezone: $e'); }
+    } catch (_) {}
     return 'Asia/Karachi';
   }
 
@@ -823,7 +819,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       await AuthService.instance.updateProfile(displayName: name);
-    } catch (e) { debugPrint('updateDisplayName: $e'); }
+    } catch (_) {}
   }
 
   Future<void> logout() async {
@@ -952,7 +948,7 @@ class AppState extends ChangeNotifier {
       final history = await ApiClient.instance.getStreakHistory();
       _streakHistory = history.map((e) => StreakHistoryEntry.fromJson(e as Map<String, dynamic>)).toList();
       notifyListeners();
-    } catch (e) { debugPrint('loadStreakHistory: $e'); }
+    } catch (_) {}
   }
 
   Future<List<dynamic>> loadStreakCalendar({int? year, int? month}) async {
@@ -1040,7 +1036,7 @@ class AppState extends ChangeNotifier {
   Future<void> revokeInvite(String id) async {
     try {
       await ApiClient.instance.revokeInvite(id);
-    } catch (e) { debugPrint('revokeInvite: $e'); }
+    } catch (_) {}
   }
 
   void clearStreak() {

@@ -57,6 +57,7 @@ class PrayerNotificationService {
           description: 'Prayer time alerts',
           importance: Importance.max,
           playSound: true,
+          sound: const RawResourceAndroidNotificationSound('adhan'),
           enableVibration: true,
           vibrationPattern: Int64List.fromList([0, 800, 400, 800]),
         ));
@@ -96,7 +97,7 @@ class PrayerNotificationService {
       final canExact = await android.canScheduleExactNotifications() ?? false;
       if (canExact) return;
       await android.requestExactAlarmsPermission();
-    } catch (e) { debugPrint('Exact alarms permission: $e'); }
+    } catch (_) {}
   }
 
   Future<void> scheduleAll(
@@ -186,7 +187,6 @@ class PrayerNotificationService {
           priority: Priority.max,
           playSound: playSound,
           category: AndroidNotificationCategory.alarm,
-          fullScreenIntent: true,
         ),
       );
 
@@ -217,7 +217,7 @@ class PrayerNotificationService {
         body: isUrdu ? 'اللہ اکبر، اللہ اکبر' : 'Allahu Akbar, Allahu Akbar',
         notificationDetails: _details(),
       );
-    } catch (e) { debugPrint('showNow error: $e'); }
+    } catch (_) {}
   }
 
   Future<List<PendingNotificationRequest>> pendingRequests() async {

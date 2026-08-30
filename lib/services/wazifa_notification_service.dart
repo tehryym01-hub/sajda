@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -64,7 +63,7 @@ class WazifaNotificationService {
         final text = wazifa.urdu.isNotEmpty ? wazifa.urdu : wazifa.english;
         body = text.length > 160 ? '${text.substring(0, 160)}...' : text;
       }
-    } catch (e) { debugPrint('getWazifaByDay for notification: $e'); }
+    } catch (_) {}
     await _plugin.zonedSchedule(
       id: _baseId,
       title: title,

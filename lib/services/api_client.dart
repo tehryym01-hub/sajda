@@ -98,17 +98,17 @@ class ApiClient {
 
   // ---------- Prayer ----------
 
-  Future<PrayerTimesResponse> getPrayerTimes(String city, String country) async {
-    final json = await _get('/prayers/times?city=${Uri.encodeQueryComponent(city)}&country=${Uri.encodeQueryComponent(country)}');
+  Future<PrayerTimesResponse> getPrayerTimes(String city, String country, {int method = 3, int school = 1}) async {
+    final json = await _get('/prayers/times?city=${Uri.encodeQueryComponent(city)}&country=${Uri.encodeQueryComponent(country)}&method=$method&school=$school');
     return PrayerTimesResponse.fromJson(json['data'] as Map<String, dynamic>);
   }
 
   Future<PrayerTimesResponse> getPrayerTimesForDate(
-      String city, String country, DateTime date) async {
+      String city, String country, DateTime date, {int method = 3, int school = 1}) async {
     final d =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final json = await _get(
-        '/prayers/times?city=${Uri.encodeQueryComponent(city)}&country=${Uri.encodeQueryComponent(country)}&date=$d');
+        '/prayers/times?city=${Uri.encodeQueryComponent(city)}&country=${Uri.encodeQueryComponent(country)}&date=$d&method=$method&school=$school');
     return PrayerTimesResponse.fromJson(json['data'] as Map<String, dynamic>);
   }
 
@@ -138,10 +138,10 @@ class ApiClient {
       try {
         result = await _getAladhanPrayerTimes(lat, lng, timezone, dateStr, method, school);
       } catch (_) {
-        result = await getPrayerTimes(city, country);
+        result = await getPrayerTimes(city, country, method: method, school: school);
       }
     } else {
-      result = await getPrayerTimes(city, country);
+      result = await getPrayerTimes(city, country, method: method, school: school);
     }
     _cachedPrayerTimes = result;
     _prayerTimesCacheTime = DateTime.now();
@@ -159,7 +159,7 @@ class ApiClient {
     final timings = json['data']['timings'] as Map<String, dynamic>;
     final prayers = <PrayerTime>[];
     for (final name in ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']) {
-      final time = timings[name]?.toString() ?? '';
+      final time = (timings[name]?.toString() ?? '').replaceAll(RegExp(r'\s*\(.*\)'), '');
       if (time.isNotEmpty) prayers.add(PrayerTime(name, time));
     }
 

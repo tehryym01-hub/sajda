@@ -2,13 +2,14 @@ import axios from 'axios';
 
 const AL_ADHAN_BASE = 'http://api.aladhan.com/v1';
 
-export const getPrayerTimesFromAPI = async (city, country) => {
+export const getPrayerTimesFromAPI = async (city, country, method = 3, school = 1) => {
   try {
     const response = await axios.get(`${AL_ADHAN_BASE}/timingsByCity`, {
       params: {
         city,
         country,
-        method: 1,
+        method,
+        school,
       },
     });
 

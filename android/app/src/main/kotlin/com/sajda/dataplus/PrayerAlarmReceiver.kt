@@ -6,9 +6,10 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.media.RingtoneManager
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
@@ -24,6 +25,19 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         if (notificationId == -1) return
 
         Log.d(TAG, "Alarm received for: $prayerName (mode: $mode)")
+
+        // Wake up screen
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val wakeLock = pm.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+                "sajda:azan_alarm"
+            )
+            wakeLock.acquire(10 * 1000L)
+            wakeLock.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire wake lock", e)
+        }
 
         try {
             showPrayerNotification(context, prayerName, isUrdu, isReminder, prayerTime, notificationId, mode)
@@ -67,6 +81,12 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val soundUri = Uri.parse("android.resource://${context.packageName}/raw/adhan")
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
             val channel = NotificationChannel(
                 channelId,
                 channelName,
@@ -77,6 +97,8 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                 } else {
                     "Azan sound at every prayer time"
                 }
+                setSound(soundUri, audioAttributes)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 if (mode == "full" && !isReminder) {
                     enableVibration(true)
                     vibrationPattern = longArrayOf(0, 800, 400, 800)
@@ -105,10 +127,10 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setSound(soundUri)
             .setVibrate(if (mode == "full" && !isReminder) longArrayOf(0, 800, 400, 800) else longArrayOf(0, 300, 200, 300))
-            .setFullScreenIntent(pendingIntent, true)
             .build()
 
         notificationManager.notify(notificationId, notification)

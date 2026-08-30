@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class PrayerNativeAlarm {
@@ -33,13 +32,13 @@ class PrayerNativeAlarm {
   static Future<void> cancelAlarm(int notificationId) async {
     try {
       await _channel.invokeMethod('cancelAlarm', {'notificationId': notificationId});
-    } on PlatformException catch (e) { debugPrint('cancelAlarm: $e'); }
+    } on PlatformException catch (_) {}
   }
 
   static Future<void> cancelAll() async {
     try {
       await _channel.invokeMethod('cancelAllAlarms');
-    } on PlatformException catch (e) { debugPrint('cancelAllAlarms: $e'); }
+    } on PlatformException catch (_) {}
   }
 }
 

@@ -137,10 +137,10 @@ class _RootState extends State<_Root> {
 Future<void> _requestAllPermissions() async {
   try {
     await PrayerNotificationService.instance.requestPermissions();
-  } catch (e) { debugPrint('Notification permissions: $e'); }
+  } catch (_) {}
   try {
     await Geolocator.requestPermission();
-  } catch (e) { debugPrint('Location permission: $e'); }
+  } catch (_) {}
 }
 
 

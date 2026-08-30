@@ -189,7 +189,7 @@ class SharedStreakScreen extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final appUrl = 'https://sajdadailyathan.site';
+                        final appUrl = 'https://play.google.com/store/apps/details?id=com.sajda.dataplus';
                         if (shared.inviteCode.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(context.read<AppState>().t('No invite code available', 'انوائٹ کوڈ دستیاب نہیں'))),

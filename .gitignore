@@ -48,3 +48,7 @@ app.*.map.json
 /android/key.properties
 /android/**/*.jks
 /android/**/*.keystore
+
+# Build artifacts & temp
+/temp_policy/
+/android/build/

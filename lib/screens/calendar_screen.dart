@@ -284,7 +284,8 @@ class _CalendarGrid extends StatelessWidget {
         future: greg == null
             ? null
             : ApiClient.instance.getPrayerTimesForDate(
-                state.prayerCityParam, state.prayerCountryParam, greg),
+                state.prayerCityParam, state.prayerCountryParam, greg,
+                method: state.prayerMethod, school: state.asrSchool),
         builder: (ctx, snap) {
           final times = snap.data;
           final names = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];

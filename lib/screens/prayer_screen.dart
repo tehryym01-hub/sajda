@@ -47,7 +47,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
           final lat = state.lat ?? city.lat;
           final lng = state.lng ?? city.lng;
           qibla = await ApiClient.instance.getQibla(lat, lng);
-        } catch (e) { debugPrint('getQibla: $e'); }
+        } catch (_) {}
       }
       if (!mounted) return;
       setState(() {
@@ -59,7 +59,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
         try {
           await PrayerNotificationService.instance
               .scheduleAll(times.prayers, isUrdu: state.isUrdu, timezone: state.locationTimezone, prayerModes: state.prayerNotificationModes);
-        } catch (e) { debugPrint('scheduleAll from prayerScreen: $e'); }
+        } catch (_) {}
       }
     } catch (e) {
       if (!mounted) return;

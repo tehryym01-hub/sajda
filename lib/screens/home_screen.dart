@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       List<IslamicEvent> events = const [];
       try {
         events = await ApiClient.instance.getTodayEvents();
-      } catch (e) { debugPrint('getTodayEvents: $e'); }
+      } catch (_) {}
       setState(() {
         _next = _computeNext(times);
         _events = events;

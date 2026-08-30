@@ -257,7 +257,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       if (state.prayerCheckinEnabled) {
         await PrayerCheckinService.instance.scheduleCheckIns(times.prayers, timezone: tz);
       }
-    } catch (e) { debugPrint('scheduleNotifications: $e'); }
+    } catch (_) {}
 
     if (state.ayahNotificationsEnabled) {
       await AyahNotificationService.instance

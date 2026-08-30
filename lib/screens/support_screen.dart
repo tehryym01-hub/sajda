@@ -14,7 +14,7 @@ class SupportScreen extends StatelessWidget {
     final uri = Uri.parse(url);
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) { debugPrint('launchUrl: $e'); }
+    } catch (_) {}
   }
 
   @override
@@ -55,7 +55,7 @@ class SupportScreen extends StatelessWidget {
             Icons.email_outlined,
             state.t('Email Us', 'ہمیں ای میل کریں'),
             state.t('We reply within 24 hours', 'ہم 24 گھنٹوں میں جواب دیتے ہیں'),
-            () => _launch('mailto:support@sajdadailyathan.site?subject=DAILY%20ATHAN%20Support'),
+            () => _launch('mailto:privacydailyathan@gmail.com?subject=DAILY%20ATHAN%20Support'),
           ),
           _tile(
             context,
@@ -66,7 +66,7 @@ class SupportScreen extends StatelessWidget {
               final review = InAppReview.instance;
               try {
                 await review.requestReview();
-              } catch (e) { debugPrint('requestReview: $e'); }
+              } catch (_) {}
             },
           ),
           _tile(

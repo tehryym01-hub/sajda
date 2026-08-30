@@ -52,7 +52,7 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
       setState(() => _pickedPosition = latLng);
       _mapController.move(latLng, 15);
       _reverseGeocode(latLng);
-    } catch (e) { debugPrint('getCurrentPosition: $e'); }
+    } catch (_) {}
   }
 
   Future<void> _reverseGeocode(LatLng pos) async {

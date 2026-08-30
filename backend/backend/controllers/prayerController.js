@@ -2,8 +2,8 @@ import { getPrayerTimesFromAPI, getNextPrayer as getNextPrayerService } from '..
 
 export const getPrayerTimes = async (req, res, next) => {
   try {
-    const { city = 'Karachi', country = 'Pakistan' } = req.query;
-    const data = await getPrayerTimesFromAPI(city, country);
+    const { city = 'Karachi', country = 'Pakistan', method = 3, school = 1 } = req.query;
+    const data = await getPrayerTimesFromAPI(city, country, parseInt(method), parseInt(school));
     res.json({ success: true, data });
   } catch (error) {
     next(error);
@@ -12,8 +12,8 @@ export const getPrayerTimes = async (req, res, next) => {
 
 export const getNextPrayer = async (req, res, next) => {
   try {
-    const { city = 'Karachi', country = 'Pakistan' } = req.query;
-    const data = await getPrayerTimesFromAPI(city, country);
+    const { city = 'Karachi', country = 'Pakistan', method = 3, school = 1 } = req.query;
+    const data = await getPrayerTimesFromAPI(city, country, parseInt(method), parseInt(school));
     const nextPrayer = getNextPrayerService(data.prayers);
 
     res.json({

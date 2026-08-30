@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -53,7 +52,7 @@ class DuaNotificationService {
     List<dynamic> duas = [];
     try {
       duas = await ApiClient.instance.getDuas();
-    } catch (e) { debugPrint('getDuas for notification: $e'); }
+    } catch (_) {}
 
     var when = DateTime(now.year, now.month, now.day, hour, minute);
     if (when.isBefore(DateTime.now())) {

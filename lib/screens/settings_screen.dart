@@ -284,16 +284,20 @@ class SettingsScreen extends StatelessWidget {
         title: Text(state.t('Delete My Data?', 'میرا ڈیٹا حذف کریں؟')),
         content: Text(
           state.t(
-            'This will delete all your local data including:\n\n'
-            '• Streak data\n'
-            '• Prayer completion history\n'
+            'This will permanently delete your account and all associated data from our servers, including:\n\n'
+            '• Account and profile information\n'
+            '• Streak data and shared streak memberships\n'
+            '• Prayer completion history\n\n'
+            'Local data on this device will also be cleared:\n'
             '• Notification preferences\n'
             '• Language settings\n'
             '• Location settings\n\n'
             'This action cannot be undone.',
-            'اس سے آپ کا تمام مقامی ڈیٹا حذف ہو جائے گا بشمول:\n\n'
-            '• سٹریک ڈیٹا\n'
-            '• نماز مکمل ہونے کی تاریخ\n'
+            'اس سے آپ کا اکاؤنٹ اور ہمارے سرورز سے تمام متعلقہ ڈیٹا مستقل طور پر حذف ہو جائے گا، بشمول:\n\n'
+            '• اکاؤنٹ اور پروفائل کی معلومات\n'
+            '• سٹریک ڈیٹا اور شیرڈ سٹریک ممبرشپ\n'
+            '• نماز مکمل ہونے کی تاریخ\n\n'
+            'اس ڈیوائس پر مقامی ڈیٹا بھی صاف ہو جائے گا:\n'
             '• نوٹیفکیشن ترجیحات\n'
             '• زبان کی ترتیبات\n'
             '• مقام کی ترتیبات\n\n'
