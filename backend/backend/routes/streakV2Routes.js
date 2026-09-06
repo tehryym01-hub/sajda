@@ -27,6 +27,8 @@ import {
   getNotifications,
   markNotificationsSeen,
   registerDevice,
+  repairFindGroups,
+  repairMintOwnerToken,
 } from '../controllers/streakV2Controller.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
 
@@ -77,5 +79,9 @@ router.post('/groups/:groupId/archive', W, archiveGroup);
 router.get('/notifications', getNotifications);
 router.post('/notifications/seen', W, markNotificationsSeen);
 router.post('/devices', W, registerDevice);
+
+// ── ONE-TIME account recovery (remove after use) ──
+router.get('/admin-repair/groups', repairFindGroups);
+router.post('/admin-repair/mint', repairMintOwnerToken);
 
 export default router;

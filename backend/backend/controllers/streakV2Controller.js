@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import SoloStreak from '../models/SoloStreak.js';
 import SoloDailyProgress from '../models/SoloDailyProgress.js';
@@ -10,6 +11,7 @@ import GroupActivity from '../models/GroupActivity.js';
 import JoinRequest from '../models/JoinRequest.js';
 import PushToken from '../models/PushToken.js';
 import { PRAYERS, todayKeyInTz } from '../services/streakLogic.js';
+import { getJwtSecret } from '../middleware/auth.js';
 import {
   GROUP_MEMBER_LIMIT_DEFAULT,
   GROUP_NAME_MAX,
@@ -1137,6 +1139,91 @@ export const registerDevice = async (req, res, next) => {
       { upsert: true },
     );
     res.json({ success: true, data: { registered: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// ONE-TIME ACCOUNT RECOVERY — a reinstall generates a fresh deviceId, which
+// orphans the old account (and any groups it owns). These endpoints let the
+// operator look the group up and mint a fresh token for its owner, who can
+// then re-link their device via POST /api/auth/link-device.
+// Guarded by a one-time repair key. REMOVE after use.
+// ─────────────────────────────────────────────────────────────────────────
+
+const REPAIR_KEY = '43c7b7035f9594145b1b693f6192872034786e331a71a63a';
+
+const repairAuthorized = (req) =>
+  String(req.headers['x-repair-key'] || '') === REPAIR_KEY;
+
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const repairFindGroups = async (req, res, next) => {
+  try {
+    if (!repairAuthorized(req)) return fail(res, 404, 'NOT_FOUND', 'Not found');
+    const q = String(req.query?.name || '').trim();
+    if (q.length < 2) return fail(res, 400, 'VALIDATION', 'name query (min 2 chars) required');
+    const groups = await Group.find({
+      status: 'active',
+      name: { $regex: escapeRegex(q), $options: 'i' },
+    })
+      .select('groupId name ownerId memberCount visibility createdAt')
+      .lean();
+    const ownerIds = [...new Set(groups.map((g) => String(g.ownerId)))];
+    const owners = ownerIds.length
+      ? await User.find({ _id: { $in: ownerIds } }).select('displayName createdAt').lean()
+      : [];
+    const omap = new Map(owners.map((o) => [String(o._id), o]));
+    res.json({
+      success: true,
+      data: {
+        items: groups.map((g) => ({
+          groupId: g.groupId,
+          name: g.name,
+          memberCount: g.memberCount,
+          visibility: g.visibility,
+          createdAt: g.createdAt,
+          owner: {
+            id: String(g.ownerId),
+            displayName: omap.get(String(g.ownerId))?.displayName || '?',
+            createdAt: omap.get(String(g.ownerId))?.createdAt || null,
+          },
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const repairMintOwnerToken = async (req, res, next) => {
+  try {
+    if (!repairAuthorized(req)) return fail(res, 404, 'NOT_FOUND', 'Not found');
+    const groupId = String(req.body?.groupId || '').trim();
+    if (!groupId) return fail(res, 400, 'VALIDATION', 'groupId required');
+    const group = await Group.findOne({ groupId, status: 'active' });
+    if (!group) return fail(res, 404, 'GROUP_NOT_FOUND', 'Group not found');
+    const owner = await User.findById(group.ownerId);
+    if (!owner) return fail(res, 404, 'OWNER_NOT_FOUND', 'Owner account no longer exists');
+    const token = jwt.sign(
+      { id: owner._id, displayName: owner.displayName, timezone: owner.timezone },
+      getJwtSecret(),
+      { expiresIn: '30d' },
+    );
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: String(owner._id),
+          displayName: owner.displayName,
+          createdAt: owner.createdAt,
+        },
+        group: { groupId: group.groupId, name: group.name, memberCount: group.memberCount },
+        nextStep: 'Open sajda://restore?token=...&userId=...&name=... on the device, then it calls /api/auth/link-device',
+      },
+    });
   } catch (error) {
     next(error);
   }

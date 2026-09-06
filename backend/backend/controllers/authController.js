@@ -111,6 +111,32 @@ export const deleteAccount = async (req, res, next) => {
   }
 };
 
+export const linkDevice = async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const deviceId = String(req.body?.deviceId || '').trim();
+    if (!deviceId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    // If another account already holds this deviceId (e.g. an abandoned
+    // account created after a reinstall), release it first — deviceId must
+    // map to exactly one account for login to be deterministic.
+    await User.updateOne(
+      { deviceId, _id: { $ne: user._id } },
+      { $set: { deviceId: `unlinked_${uuidv4()}` } },
+    );
+    user.deviceId = deviceId;
+    await user.save();
+    res.json({ success: true, data: { linked: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user?.id || req.user?._id;
