@@ -233,23 +233,11 @@ export const completePrayer = async (req, res, next) => {
           { $setOnInsert: { ...rowFilter }, $set: { eligible } },
           { upsert: true },
         );
-        const did = await flippedTrue(GroupDailyProgress, rowFilter, prayer);
-        if (did) {
-          await GroupActivity.create({
-            groupId: group.groupId, userId: user.id, displayName: user.displayName,
-            type: 'prayer_completed', prayer,
-          });
-        }
+        await flippedTrue(GroupDailyProgress, rowFilter, prayer);
         const row = await markDayComplete(GroupDailyProgress, rowFilter, completed);
         if (eligible) await maybeCompleteGroupDay(group, gKey, { _id: user.id, displayName: user.displayName });
       } else {
-        const did = await flippedFalse(GroupDailyProgress, rowFilter, prayer);
-        if (did) {
-          await GroupActivity.deleteOne({
-            groupId: group.groupId, userId: new mongoose.Types.ObjectId(user.id),
-            type: 'prayer_completed', prayer, dateKey: { $exists: false }, createdAt: { $gte: new Date(Date.now() - 26 * 3600 * 1000) },
-          });
-        }
+        await flippedFalse(GroupDailyProgress, rowFilter, prayer);
         await markDayComplete(GroupDailyProgress, rowFilter, false);
         if (eligible) await revertGroupDay(group, gKey);
       }
@@ -366,7 +354,9 @@ const addMemberToGroup = async (group, user, role = 'member') => {
     existing.status = 'active';
     existing.role = role;
     existing.joinedAt = new Date();
-    existing.effectiveFromDate = effectiveFrom; // rejoin restarts eligibility next day
+    // Required for group-day completion from the NEXT day — the joiner's
+    // own progress still counts and shows from today.
+    existing.effectiveFromDate = effectiveFrom;
     existing.displayName = user.displayName;
     existing.leftAt = null;
     await existing.save();
@@ -435,6 +425,7 @@ export const getMyGroups = async (req, res, next) => {
           completedCount: myRow?.completedCount || 0,
           isDayComplete: !!myRow?.isDayComplete,
           eligible,
+          required: eligible, // false today for brand-new joiners (counting but not blocking)
         },
         today: { required: requiredToday, completed: doneToday, isGroupDayComplete: !!summaryToday?.isGroupDayComplete },
         isOwner: String(g.ownerId) === user.id,
@@ -500,7 +491,12 @@ export const getGroupDashboard = async (req, res, next) => {
           userId: String(m.userId),
           displayName: m.displayName,
           role: m.role,
+          // `eligible`/`required`: member is part of TODAY's group-day
+          // requirement. New joiners count/display from day one but become
+          // required only from the next day, so a late join never blocks
+          // an existing streak day.
           eligible: isMemberEligibleOn(m, gKey),
+          required: isMemberEligibleOn(m, gKey),
           completedCount: row?.completedCount || 0,
           isDayComplete: !!row?.isDayComplete,
           isMe: String(m.userId) === user.id,
@@ -566,7 +562,9 @@ export const getGroupActivity = async (req, res, next) => {
     if (!ctx) return;
     const limit = Math.min(Number(req.query?.limit) || ACTIVITY_PAGE_SIZE, 50);
     const before = req.query?.before ? new Date(req.query.before) : null;
-    const q = { groupId, ...(before ? { createdAt: { $lt: before } } : {}) };
+    // Feed is EVENTS only — per-prayer entries were retired; old rows stay
+    // in the DB but are filtered out of every feed.
+    const q = { groupId, type: { $ne: 'prayer_completed' }, ...(before ? { createdAt: { $lt: before } } : {}) };
     const items = await GroupActivity.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
     const hasMore = items.length > limit;
     res.json({
@@ -610,6 +608,67 @@ export const getGroupHistory = async (req, res, next) => {
         currentStreak: fresh.currentStreak,
         bestStreak: fresh.bestStreak,
         currentStreakStartDate: fresh.currentStreakStartDate,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// MEMBER DETAIL — tap a member's name in the dashboard to see their
+// today status, all-time totals and streaks (score = total prayers).
+// ─────────────────────────────────────────────────────────────────────────
+
+export const getMemberDetail = async (req, res, next) => {
+  try {
+    const user = await resolveUser(req);
+    const { groupId, userId } = req.params;
+    const ctx = await requireMembership(res, groupId, user.id, { activeOnly: false });
+    if (!ctx) return;
+    const { group } = ctx;
+    const target = await memberOf(groupId, userId);
+    if (!target || target.status !== 'active') {
+      return fail(res, 404, 'NOT_MEMBER', 'That user is not an active member');
+    }
+    const gKey = todayKeyInTz(group.timezone);
+    const rows = await GroupDailyProgress.find({
+      groupId, userId: new mongoose.Types.ObjectId(userId),
+    }).select('dateKey fajr dhuhr asr maghrib isha completedCount isDayComplete').lean();
+    const totalPrayers = rows.reduce((s, r) => s + (r.completedCount || 0), 0);
+    const completeDays = new Set(rows.filter((r) => r.isDayComplete).map((r) => r.dateKey));
+    const todayRow = rows.find((r) => r.dateKey === gKey) || null;
+    const { run, startDate } = currentRunFromDays(completeDays, gKey);
+    const best = Math.max(longestRunFromDays(completeDays), run);
+    res.json({
+      success: true,
+      data: {
+        member: {
+          userId: String(target.userId),
+          displayName: target.displayName,
+          role: target.role,
+          joinedAt: target.joinedAt,
+          requiredToday: isMemberEligibleOn(target, gKey),
+          isMe: String(target.userId) === user.id,
+        },
+        today: {
+          dateKey: gKey,
+          fajr: !!todayRow?.fajr,
+          dhuhr: !!todayRow?.dhuhr,
+          asr: !!todayRow?.asr,
+          maghrib: !!todayRow?.maghrib,
+          isha: !!todayRow?.isha,
+          completedCount: todayRow?.completedCount || 0,
+          isDayComplete: !!todayRow?.isDayComplete,
+        },
+        totals: {
+          score: totalPrayers,
+          totalPrayers,
+          completeDays: completeDays.size,
+          currentStreak: run,
+          bestStreak: best,
+          currentStreakStartDate: startDate,
+        },
       },
     });
   } catch (error) {
@@ -688,7 +747,7 @@ export const joinByInviteCode = async (req, res, next) => {
     );
     res.json({
       success: true,
-      data: { alreadyMember: false, groupId: group.groupId, name: group.name, message: 'Joined! Your progress counts for the group from tomorrow.' },
+      data: { alreadyMember: false, groupId: group.groupId, name: group.name, message: 'Joined! Your prayers count from today — you join the group day requirement from tomorrow.' },
     });
   } catch (error) {
     next(error);
@@ -1034,7 +1093,7 @@ export const getNotifications = async (req, res, next) => {
     const items = await GroupActivity.find({
       groupId: { $in: groupIds },
       userId: { $ne: new mongoose.Types.ObjectId(user.id) }, // never your own actions
-      type: { $in: ['prayer_completed', 'group_day_completed', 'member_joined', 'member_left', 'member_removed'] },
+      type: { $in: ['group_day_completed', 'member_joined', 'member_left', 'member_removed'] },
     })
       .sort({ createdAt: -1 })
       .limit(30)
@@ -1042,7 +1101,7 @@ export const getNotifications = async (req, res, next) => {
     const unread = await GroupActivity.countDocuments({
       groupId: { $in: groupIds },
       userId: { $ne: new mongoose.Types.ObjectId(user.id) },
-      type: { $in: ['prayer_completed', 'group_day_completed', 'member_joined', 'member_left', 'member_removed'] },
+      type: { $in: ['group_day_completed', 'member_joined', 'member_left', 'member_removed'] },
       createdAt: { $gt: seenAt },
     });
     res.json({

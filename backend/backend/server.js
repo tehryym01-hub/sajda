@@ -59,7 +59,9 @@ app.use(helmet({
   },
 }));
 app.use(compression());
-app.use(morgan('dev'));
+// Request logging is a dev tool — at 20k users it burns CPU and memory for
+// nothing. Only enabled when explicitly running in development.
+if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 app.use(cors({
   origin: ['https://sajda-privacy.onrender.com'],
   credentials: true,

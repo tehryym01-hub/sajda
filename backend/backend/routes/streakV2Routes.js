@@ -10,6 +10,7 @@ import {
   getGroupDashboard,
   getGroupActivity,
   getGroupHistory,
+  getMemberDetail,
   leaveGroup,
   removeMember,
   renameGroup,
@@ -27,50 +28,54 @@ import {
   markNotificationsSeen,
   registerDevice,
 } from '../controllers/streakV2Controller.js';
-import { generalLimiter } from '../middleware/rateLimiter.js';
+import { writeLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-router.use(generalLimiter);
+// Reads are unlimited — the app's normal flow is a handful of GETs per
+// screen and rate limiting them only punishes shared-IP (CGNAT) users.
+// Writes carry a generous per-USER limit (see rateLimiter.js).
+const W = writeLimiter;
 
 // ── Solo streak ──
 router.get('/solo', getSolo);
-router.post('/solo/start', startSolo);
-router.post('/prayers/complete', completePrayer); // THE one canonical prayer tick
+router.post('/solo/start', W, startSolo);
+router.post('/prayers/complete', W, completePrayer); // THE one canonical prayer tick
 router.get('/solo/history', getSoloHistory);
 
 // ── Groups: discovery & listing (static paths BEFORE :groupId) ──
 router.get('/groups', getMyGroups);
-router.post('/groups', createGroup);
+router.post('/groups', W, createGroup);
 router.get('/groups/discover', discoverGroups);
 router.get('/requests/me', getMyRequests);
 
 // ── Invite code / deep link ──
 router.get('/invite/:code', getInvitePreview);
-router.post('/invite/:code/join', joinByInviteCode);
+router.post('/invite/:code/join', W, joinByInviteCode);
 
 // ── Join requests ──
-router.post('/groups/:groupId/join-request', requestToJoin);
+router.post('/groups/:groupId/join-request', W, requestToJoin);
 router.get('/groups/:groupId/requests', getGroupRequests);
-router.post('/requests/:requestId/approve', approveRequest);
-router.post('/requests/:requestId/decline', declineRequest);
+router.post('/requests/:requestId/approve', W, approveRequest);
+router.post('/requests/:requestId/decline', W, declineRequest);
 
-// ── Group dashboard / activity / history ──
+// ── Group dashboard / activity / history / member detail ──
 router.get('/groups/:groupId/dashboard', getGroupDashboard);
 router.get('/groups/:groupId/activity', getGroupActivity);
 router.get('/groups/:groupId/history', getGroupHistory);
+router.get('/groups/:groupId/members/:userId', getMemberDetail);
 
 // ── Group management ──
-router.post('/groups/:groupId/leave', leaveGroup);
-router.post('/groups/:groupId/rename', renameGroup);
-router.post('/groups/:groupId/invite/rotate', rotateInviteCode);
-router.post('/groups/:groupId/members/:userId/remove', removeMember);
-router.post('/groups/:groupId/transfer', transferOwnership);
-router.post('/groups/:groupId/archive', archiveGroup);
+router.post('/groups/:groupId/leave', W, leaveGroup);
+router.post('/groups/:groupId/rename', W, renameGroup);
+router.post('/groups/:groupId/invite/rotate', W, rotateInviteCode);
+router.post('/groups/:groupId/members/:userId/remove', W, removeMember);
+router.post('/groups/:groupId/transfer', W, transferOwnership);
+router.post('/groups/:groupId/archive', W, archiveGroup);
 
 // ── Notifications (in-app feed; FCM-ready) & devices ──
 router.get('/notifications', getNotifications);
-router.post('/notifications/seen', markNotificationsSeen);
-router.post('/devices', registerDevice);
+router.post('/notifications/seen', W, markNotificationsSeen);
+router.post('/devices', W, registerDevice);
 
 export default router;
