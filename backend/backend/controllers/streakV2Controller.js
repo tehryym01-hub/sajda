@@ -200,6 +200,16 @@ export const completePrayer = async (req, res, next) => {
     let solo = await SoloStreak.findOne({ userId: user.id });
     if (completed && !solo) solo = await SoloStreak.create({ userId: user.id });
     const soloRowFilter = { userId: new mongoose.Types.ObjectId(user.id), dateKey: soloKey };
+    // Ensure today's row exists BEFORE the conditional flip — a plain
+    // updateOne cannot create it, so the first tick of a fresh day would
+    // otherwise be a silent no-op (same pattern as the group fan-out below).
+    if (completed) {
+      await SoloDailyProgress.updateOne(
+        soloRowFilter,
+        { $setOnInsert: { ...soloRowFilter, completedCount: 0 } },
+        { upsert: true },
+      );
+    }
     const flip = completed
       ? await flippedTrue(SoloDailyProgress, soloRowFilter, prayer)
       : await flippedFalse(SoloDailyProgress, soloRowFilter, prayer);
