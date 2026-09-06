@@ -28,6 +28,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Render sits behind exactly one reverse proxy. Without this, req.ip is the
+// proxy's internal IP for EVERY client, which collapses the rate limiter
+// into one global bucket shared by all users ("Too many requests" for
+// everyone after a few app opens).
+app.set('trust proxy', 1);
+
+
 
 const checkDBConnection = (req, res, next) => {
   if (!dbConnected) {
