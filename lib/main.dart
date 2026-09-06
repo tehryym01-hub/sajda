@@ -142,5 +142,3 @@ Future<void> _requestAllPermissions() async {
     await Geolocator.requestPermission();
   } catch (_) {}
 }
-
-

@@ -4,13 +4,21 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
-import 'package:intl/intl.dart';
 import '../services/hijri_date_service.dart';
 import '../services/auth_service.dart';
+import '../services/date_service.dart';
 
 class ApiException implements Exception {
   final String message;
-  ApiException(this.message);
+  /// Machine-readable error code from the backend (e.g. INVALID_INVITE,
+  /// HAVE_ACTIVE_STREAK, STREAK_NOT_ACTIVE...). Null when the backend did
+  /// not send one — callers must fall back to [message]/[status].
+  final String? code;
+  /// HTTP status code (400/401/403/404...) or null for transport errors.
+  final int? status;
+  ApiException(this.message, {this.code, this.status});
+  bool get isAuthError => status == 401 || code == 'UNAUTHORIZED' || code == 'TOKEN_EXPIRED' || code == 'INVALID_TOKEN';
+  bool get isNetworkError => status == null;
   @override
   String toString() => message;
 }
@@ -23,6 +31,9 @@ class ApiClient {
 
   PrayerTimesResponse? _cachedPrayerTimes;
   DateTime? _prayerTimesCacheTime;
+  // Cache is only valid for the exact inputs it was built with — a location
+  // or calculation-method change must NEVER serve stale times.
+  String? _prayerTimesCacheKey;
 
   PrayerTimesResponse? get cachedPrayerTimes {
     if (_cachedPrayerTimes == null || _prayerTimesCacheTime == null) return null;
@@ -37,6 +48,7 @@ class ApiClient {
   void invalidatePrayerTimesCache() {
     _cachedPrayerTimes = null;
     _prayerTimesCacheTime = null;
+    _prayerTimesCacheKey = null;
   }
 
   Map<String, String> _headers() {
@@ -53,25 +65,40 @@ class ApiClient {
     try {
       json = jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
-      throw ApiException('Server returned invalid response');
+      throw ApiException('Server returned invalid response', status: res.statusCode);
     }
     if (json['success'] != true) {
-      throw ApiException(json['message']?.toString() ?? 'API error');
+      throw ApiException(
+        json['message']?.toString() ?? 'API error',
+        code: json['code']?.toString(),
+        status: res.statusCode,
+      );
     }
     return json;
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final res = await http.get(Uri.parse('$_base$path'), headers: _headers())
-        .timeout(const Duration(seconds: 15));
+    http.Response res;
+    try {
+      res = await http.get(Uri.parse('$_base$path'), headers: _headers())
+          .timeout(const Duration(seconds: 15));
+    } on Exception {
+      rethrow;
+    }
+    return _unwrapChecked(res);
+  }
+
+  Map<String, dynamic> _unwrapChecked(http.Response res) {
     if (res.statusCode >= 400) {
+      Map<String, dynamic>? json;
       try {
-        final json = jsonDecode(res.body) as Map<String, dynamic>;
-        throw ApiException(json['message']?.toString() ?? 'HTTP ${res.statusCode}');
-      } catch (e) {
-        if (e is ApiException) rethrow;
-        throw ApiException('HTTP ${res.statusCode}');
-      }
+        json = jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {}
+      throw ApiException(
+        json?['message']?.toString() ?? 'HTTP ${res.statusCode}',
+        code: json?['code']?.toString(),
+        status: res.statusCode,
+      );
     }
     return _unwrap(res);
   }
@@ -84,16 +111,7 @@ class ApiClient {
       headers: _headers(),
       body: jsonEncode(body),
     ).timeout(const Duration(seconds: 15));
-    if (res.statusCode >= 400) {
-      try {
-        final json = jsonDecode(res.body) as Map<String, dynamic>;
-        throw ApiException(json['message']?.toString() ?? 'HTTP ${res.statusCode}');
-      } catch (e) {
-        if (e is ApiException) rethrow;
-        throw ApiException('HTTP ${res.statusCode}');
-      }
-    }
-    return _unwrap(res);
+    return _unwrapChecked(res);
   }
 
   // ---------- Prayer ----------
@@ -118,20 +136,23 @@ class ApiClient {
   }
 
   Future<PrayerTimesResponse> getPrayerTimesFor(AppState state, {bool useCache = true}) async {
-    if (useCache) {
-      final cached = cachedPrayerTimes;
-      if (cached != null) return cached;
-    }
     final lat = state.lat ?? 0.0;
     final lng = state.lng ?? 0.0;
     final city = state.prayerCityParam;
     final country = state.prayerCountryParam;
     final timezone = state.locationTimezone;
     final date = DateTime.now();
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = dateService.formatDateAsYYYYMMDD(date: date, timezone: timezone);
     final method = state.prayerMethod;
     final school = state.asrSchool;
+
+    // Cache is only valid for the exact inputs it was built with — a
+    // location/method/school change or a new day must refetch.
+    final cacheKey = '$lat|$lng|$city|$country|$timezone|$dateStr|$method|$school';
+    if (useCache && _prayerTimesCacheKey == cacheKey) {
+      final cached = cachedPrayerTimes;
+      if (cached != null) return cached;
+    }
 
     PrayerTimesResponse result;
     if (lat != 0.0 && lng != 0.0) {
@@ -145,6 +166,7 @@ class ApiClient {
     }
     _cachedPrayerTimes = result;
     _prayerTimesCacheTime = DateTime.now();
+    _prayerTimesCacheKey = cacheKey;
     return result;
   }
 
@@ -225,9 +247,11 @@ class ApiClient {
           fullAr: hijriInfo.fullAr,
           monthNumber: hijriInfo.month,
         );
-        final currentTime = DateFormat('HH:mm').format(DateTime.now());
-        final now = DateTime.now();
-        final currentMinutes = now.hour * 60 + now.minute;
+        final currentTimeHm = dateService.nowHmInTimezone(timezone);
+        final currentTime = '${currentTimeHm.$1.toString().padLeft(2, '0')}:${currentTimeHm.$2.toString().padLeft(2, '0')}';
+        // "Now" must be evaluated in the SAME timezone the prayer times
+        // are expressed in — never the device's local clock.
+        final currentMinutes = currentTimeHm.$1 * 60 + currentTimeHm.$2;
         final prayerTimes = prayers.map((p) {
           final parts = p.time.split(':');
           if (parts.length == 2) {
@@ -382,6 +406,30 @@ class ApiClient {
 
   Future<Map<String, dynamic>> resumeStreak() async {
     final json = await _post('/streak/resume', {});
+    return json['data'] as Map<String, dynamic>;
+  }
+
+  /// Increases the streak target WITHOUT resetting progress.
+  Future<Map<String, dynamic>> extendStreakGoal(int goalDays) async {
+    final json = await _post('/streak/extend', {'goalDays': goalDays});
+    return json['data'] as Map<String, dynamic>;
+  }
+
+  /// Cancels (abandons) the personal streak — history is preserved.
+  Future<Map<String, dynamic>> cancelStreak() async {
+    final json = await _post('/streak/cancel', {});
+    return json['data'] as Map<String, dynamic>;
+  }
+
+  /// Ended streaks (completed/expired/cancelled) for history display.
+  Future<List<dynamic>> getPastStreaks() async {
+    final json = await _get('/streak/past');
+    return json['data']?['streaks'] as List<dynamic>? ?? [];
+  }
+
+  /// Creator-only: ends a shared streak for ALL members (history preserved).
+  Future<Map<String, dynamic>> endSharedStreak(String id) async {
+    final json = await _post('/streak/shared/$id/end', {});
     return json['data'] as Map<String, dynamic>;
   }
 

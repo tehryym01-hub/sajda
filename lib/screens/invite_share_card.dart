@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/share_image.dart';
+import '../utils/streak_invite_text.dart';
 
 class InviteShareCard extends StatefulWidget {
   final String streakTitle;
@@ -41,8 +42,12 @@ class _InviteShareCardState extends State<InviteShareCard> {
   }
 
   String _buildShareText() {
-    final name = widget.creatorName != null ? '${widget.creatorName} invited you to join' : 'You are invited to join';
-    return '$name ${widget.streakTitle}\n\nPray together and stay consistent!\n\nDownload Sajda: Daily Athan & Qibla\n${widget.appUrl}\n\nInvite code: ${widget.inviteCode}';
+    return buildStreakInviteShareText(
+      streakTitle: widget.streakTitle,
+      inviteCode: widget.inviteCode,
+      appUrl: widget.appUrl,
+      inviterName: widget.creatorName,
+    );
   }
 
   @override

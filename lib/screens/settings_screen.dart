@@ -325,7 +325,7 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _deleteAllData(BuildContext context, AppState state) async {
     try {
       if (state.isAuthenticated) {
-        final response = await ApiClient.instance.deleteAccount(state);
+        await ApiClient.instance.deleteAccount(state);
       }
       await state.logout();
       state.clearStreak();

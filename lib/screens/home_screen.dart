@@ -13,10 +13,12 @@ import '../services/quran_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'adhkar_screen.dart';
+import 'my_streak_screen.dart';
 import 'main_shell.dart';
 import 'prayer_screen.dart';
 import 'qibla_screen.dart';
 import 'quran_screen.dart';
+import 'streak_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -548,6 +550,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // ── Your Streak ──
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: _HomeStreakCard(),
+              ),
+            ),
+
             // ── Quick Access ──
             SliverToBoxAdapter(
               child: Padding(
@@ -868,6 +878,184 @@ class _HomeScreenState extends State<HomeScreen> {
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// State-aware streak entry point on the Home screen.
+/// Loading → skeleton, active → summary card, ended → create new,
+/// none → create CTA. Never shows "create" while membership is loading.
+class _HomeStreakCard extends StatelessWidget {
+  const _HomeStreakCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final streak = state.streak;
+    final todayDone = [
+      state.todayProgress['fajr'],
+      state.todayProgress['dhuhr'],
+      state.todayProgress['asr'],
+      state.todayProgress['maghrib'],
+      state.todayProgress['isha'],
+    ].where((p) => p == true).length;
+
+    final surface = dark ? AppColors.darkSurface : AppColors.lightCard;
+    final border = dark ? AppColors.darkSurfaceAlt : AppColors.lightBorder;
+
+    // Skeleton while membership/streak loads (prevents "Create" flash).
+    if (!state.isAuthenticated || (streak == null && state.streakLoading)) {
+      return Container(
+        height: 84,
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: border),
+        ),
+        alignment: Alignment.center,
+        child: state.isAuthenticated
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.local_fire_department_rounded, color: AppColors.primary, size: 22),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      state.t('Start your Salah Streak', 'اپنی صلاح سٹریک شروع کریں'),
+                      style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+      ).tapTo(const StreakScreen());
+    }
+
+    final active = streak != null && (streak.isActive || streak.isPaused);
+    final ended = streak != null && streak.hasEnded;
+    final memberCount = state.sharedMembers.where((m) => m.isActive).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+            ),
+            child: Icon(
+              ended ? Icons.emoji_events_rounded : Icons.local_fire_department_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  active
+                      ? (streak.isShared && state.sharedStreak != null
+                          ? state.sharedStreak!.title
+                          : state.t('Your Streak', 'آپ کی سٹریک'))
+                      : ended
+                          ? state.t('Streak Ended', 'سٹریک ختم ہو گئی')
+                          : state.t('No streak yet', 'ابھی کوئی سٹریک نہیں'),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  active
+                      ? '🔥 $todayDone/5 ${state.t('today', 'آج')}'
+                      : ended
+                          ? state.t('Start a new streak', 'نئی سٹریک شروع کریں')
+                          : state.t('Build consistency one day at a time', 'ایک دن میں ایک مستقل بنائیں'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: dark ? AppColors.darkMuted : AppColors.lightMutedText,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (active && streak.isShared && memberCount > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.people_rounded, size: 13, color: AppColors.primary),
+                  const SizedBox(width: 4),
+                  Text('$memberCount', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => active ? const MyStreakScreen() : const StreakScreen(),
+                ),
+              ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  child: Text(
+                    active ? state.t('View', 'دیکھیں') : state.t('Create', 'بنائیں'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+extension _TapTo on Widget {
+  Widget tapTo(Widget screen) {
+    return Builder(
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen)),
+        child: this,
       ),
     );
   }

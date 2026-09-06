@@ -535,7 +535,7 @@ class StreakModel {
   final int longestStreak;
   final DateTime startDate;
   final DateTime? endDate;
-  final String status; // 'active', 'paused', 'completed', 'expired'
+  final String status; // 'active', 'paused', 'completed', 'expired', 'cancelled'
   final bool isShared;
   final String? sharedStreakId;
   final String? lastCompletedDate;
@@ -561,6 +561,8 @@ class StreakModel {
   bool get isCompleted => status == 'completed';
   bool get isPaused => status == 'paused';
   bool get isExpired => status == 'expired';
+  bool get isCancelled => status == 'cancelled';
+  bool get hasEnded => isCompleted || isExpired || isCancelled;
 
   double get progress => goalDays > 0 ? currentDay / goalDays : 0;
 
@@ -631,11 +633,12 @@ class SharedStreakModel {
   final int currentDay;
   final DateTime startDate;
   final DateTime? endDate;
-  final String status; // 'pending', 'active', 'completed', 'expired'
+  final String status; // 'pending', 'active', 'completed', 'expired', 'cancelled'
   final String inviteCode;
   final int maxMembers;
   final bool isRevoked;
   final DateTime? completedAt;
+  final String creatorName;
 
   SharedStreakModel({
     required this.id,
@@ -645,16 +648,19 @@ class SharedStreakModel {
     this.currentDay = 0,
     required this.startDate,
     this.endDate,
-    this.status = 'pending', // 'pending', 'active', 'completed', 'expired'
+    this.status = 'pending', // 'pending', 'active', 'completed', 'expired', 'cancelled'
     required this.inviteCode,
     this.maxMembers = 10,
     this.isRevoked = false,
     this.completedAt,
+    this.creatorName = '',
   });
 
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
   bool get isExpired => status == 'expired';
+  bool get isCancelled => status == 'cancelled';
+  bool get hasEnded => isCompleted || isExpired || isCancelled;
 
   factory SharedStreakModel.fromJson(Map<String, dynamic> json) => SharedStreakModel(
         id: _s(json['_id'] ?? json['id']),
@@ -669,6 +675,7 @@ class SharedStreakModel {
         maxMembers: _i(json['maxMembers'], 10),
         isRevoked: _b(json['isRevoked']),
         completedAt: json['completedAt'] != null ? _parseDate(json['completedAt']) : null,
+        creatorName: _s(json['creatorName']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -684,6 +691,7 @@ class SharedStreakModel {
         'maxMembers': maxMembers,
         'isRevoked': isRevoked,
         'completedAt': completedAt?.toIso8601String(),
+        'creatorName': creatorName,
       };
 }
 
@@ -697,6 +705,7 @@ class StreakMemberModel {
   final int currentDay;
   final String? lastCompletedDate;
   final bool notificationOptIn;
+  final bool isCurrentUser;
 
   StreakMemberModel({
     required this.id,
@@ -708,6 +717,7 @@ class StreakMemberModel {
     this.currentDay = 0,
     this.lastCompletedDate,
     this.notificationOptIn = true,
+    this.isCurrentUser = false,
   });
 
   bool get isActive => status == 'active';
@@ -722,6 +732,7 @@ class StreakMemberModel {
         currentDay: _i(json['currentDay']),
         lastCompletedDate: json['lastCompletedDate'] != null ? _s(json['lastCompletedDate']) : null,
         notificationOptIn: _b(json['notificationOptIn'], true),
+        isCurrentUser: _b(json['isCurrentUser']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -734,5 +745,6 @@ class StreakMemberModel {
         'currentDay': currentDay,
         'lastCompletedDate': lastCompletedDate,
         'notificationOptIn': notificationOptIn,
+        'isCurrentUser': isCurrentUser,
       };
 }

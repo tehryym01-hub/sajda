@@ -7,10 +7,10 @@ const sharedStreakSchema = new mongoose.Schema({
   currentDay: { type: Number, default: 0, min: 0 },
   startDate: { type: Date, required: true },
   endDate: { type: Date },
-  status: { 
-    type: String, 
-    enum: ['pending', 'active', 'completed', 'expired'], 
-    default: 'pending' 
+  status: {
+    type: String,
+    enum: ['pending', 'active', 'completed', 'expired', 'cancelled'],
+    default: 'pending'
   },
   inviteCode: { type: String, required: true, unique: true, index: true },
   maxMembers: { type: Number, default: 10, min: 2, max: 50 },

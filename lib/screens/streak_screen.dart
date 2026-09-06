@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'create_streak_screen.dart';
+import 'my_streak_screen.dart';
 import 'shared_streak_board_screen.dart';
 import 'join_streak_screen.dart';
 import 'invite_share_card.dart';
@@ -463,8 +464,16 @@ class _StreakHomeState extends State<_StreakHome> {
             ),
             const SizedBox(height: 28),
 
-            if (streak != null && streak.isActive) ...[
-              _StreakCard(streak: streak, todayProgress: state.todayProgress),
+            // Loading: never show "Create" while membership/streak is loading.
+            if (state.isAuthenticated && streak == null && state.streakLoading)
+              _LoadingStreakCard(state: state)
+            else if (streak != null && streak.isActive) ...[
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MyStreakScreen()),
+                ),
+                child: _StreakCard(streak: streak, todayProgress: state.todayProgress),
+              ),
               const SizedBox(height: 20),
               _TodayPrayerCard(todayProgress: state.todayProgress, completedCount: completedCount),
               const SizedBox(height: 20),
@@ -516,7 +525,7 @@ class _StreakHomeState extends State<_StreakHome> {
                   ),
                 ),
               ),
-            ] else if (streak != null && !streak.isActive && !streak.isCompleted) ...[
+            ] else if (streak != null && streak.isPaused) ...[
               _StreakCard(streak: streak, todayProgress: state.todayProgress),
               const SizedBox(height: 20),
               _TodayPrayerCard(todayProgress: state.todayProgress, completedCount: completedCount),
@@ -553,6 +562,49 @@ class _StreakHomeState extends State<_StreakHome> {
                   icon: Icon(Icons.group_add_rounded, color: AppColors.primary),
                   label: Text(
                     state.t('Join a Streak', 'سٹریک میں شامل ہوں'),
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ] else if (streak != null && (streak.isCompleted || streak.isExpired || streak.isCancelled)) ...[
+              // Ended: history is preserved; guide the user to a fresh start.
+              _EndedStreakCard(streak: streak, state: state),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CreateStreakScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(state.t('Create New Streak', 'نئی سٹریک بنائیں'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyStreakScreen()),
+                    );
+                  },
+                  icon: Icon(Icons.history_rounded, color: AppColors.primary, size: 20),
+                  label: Text(
+                    state.t('View History', 'تاریخ دیکھیں'),
                     style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -667,6 +719,147 @@ class _StreakHomeState extends State<_StreakHome> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LoadingStreakCard extends StatelessWidget {
+  final AppState state;
+
+  const _LoadingStreakCard({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightCard,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightBorder),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(
+            height: 28,
+            width: 28,
+            child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            state.t('Loading your streak...', 'آپ کی سٹریک لوڈ ہو رہی ہے...'),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkMuted : AppColors.lightMutedText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EndedStreakCard extends StatelessWidget {
+  final StreakModel streak;
+  final AppState state;
+
+  const _EndedStreakCard({required this.streak, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isGoalReached = streak.isCompleted;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            (isGoalReached ? AppColors.primary : AppColors.danger).withValues(alpha: 0.12),
+            (isGoalReached ? AppColors.primaryDeep : AppColors.danger).withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: (isGoalReached ? AppColors.primary : AppColors.danger).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  (isGoalReached ? AppColors.primary : AppColors.danger).withValues(alpha: 0.25),
+                  (isGoalReached ? AppColors.primaryDeep : AppColors.danger).withValues(alpha: 0.12),
+                ],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isGoalReached ? Icons.emoji_events_rounded : Icons.local_fire_department_outlined,
+              size: 38,
+              color: isGoalReached ? AppColors.primary : AppColors.danger,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            isGoalReached
+                ? state.t('Goal Reached — MashaAllah!', 'ہدف مکمل — ماشاءاللہ!')
+                : state.t('Your streak has ended', 'آپ کی سٹریک ختم ہو گئی'),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, fontSize: 20),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            state.t(
+              'Your ${streak.currentDay}-day journey and full history are preserved.',
+              'آپ کے ${streak.currentDay} دن کا سفر اور مکمل تاریخ محفوظ ہے۔',
+            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkMuted : AppColors.lightMutedText,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _EndedStat(value: '${streak.currentDay}', label: state.t('Days', 'دن')),
+              Container(width: 1, height: 34, color: (isGoalReached ? AppColors.primary : AppColors.danger).withValues(alpha: 0.2)),
+              _EndedStat(value: '${streak.longestStreak}', label: state.t('Best', 'بہترین')),
+              Container(width: 1, height: 34, color: (isGoalReached ? AppColors.primary : AppColors.danger).withValues(alpha: 0.2)),
+              _EndedStat(value: '${streak.goalDays}', label: state.t('Target', 'ہدف')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EndedStat extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _EndedStat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primary)),
+          Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11)),
+        ],
       ),
     );
   }

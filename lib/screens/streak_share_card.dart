@@ -44,20 +44,18 @@ class _StreakShareCardState extends State<StreakShareCard> {
   String _buildShareText() {
     final name = widget.displayName ?? 'Someone';
     final shared = widget.sharedStreak;
-    final memberCount = widget.sharedMembers.where((m) => m.isActive).length;
 
     var text = '$name\'s Salah Streak\n\n';
     text += '${widget.streak.currentStreak} day streak active!\n';
     text += 'Best: ${widget.streak.longestStreak} days\n';
     text += 'Goal: ${widget.streak.goalDays} days\n';
 
-    if (shared != null && memberCount > 0) {
-      text += '\nPraying with $memberCount ${memberCount == 1 ? 'friend' : 'friends'}\n';
-      final top3 = widget.sharedMembers.where((m) => m.isActive).toList()
-        ..sort((a, b) => b.currentDay.compareTo(a.currentDay));
-      for (var i = 0; i < top3.length && i < 3; i++) {
-        text += '  ${top3[i].displayName} - ${top3[i].currentDay} days\n';
-      }
+    if (shared != null && shared.inviteCode.isNotEmpty) {
+      text += '\n🎯 Use invite code: ${shared.inviteCode}\n';
+    }
+
+    if (shared != null && shared.title.isNotEmpty) {
+      text += '\nStreak: ${shared.title}\n';
     }
 
     text += '\nJoin me on Sajda: Daily Athan & Qibla\n';

@@ -8,10 +8,10 @@ const streakSchema = new mongoose.Schema({
   longestStreak: { type: Number, default: 0, min: 0 },
   startDate: { type: Date, required: true },
   endDate: { type: Date },
-  status: { 
-    type: String, 
-    enum: ['active', 'completed', 'paused', 'expired'], 
-    default: 'active' 
+  status: {
+    type: String,
+    enum: ['active', 'completed', 'paused', 'expired', 'cancelled'],
+    default: 'active'
   },
   isShared: { type: Boolean, default: false },
   sharedStreakId: { type: mongoose.Schema.Types.ObjectId, ref: 'SharedStreak' },

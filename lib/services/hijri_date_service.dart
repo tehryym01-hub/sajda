@@ -1,6 +1,21 @@
 import 'package:hijri/hijri_calendar.dart';
 
-/// Local Hijri date calculation service using Umm al-Qura algorithm (Saudi Arabia official).
+import 'date_service.dart';
+
+/// Local Hijri date calculation service using Umm al-Qura algorithm.
+///
+/// Islamic-day rule (IMPORTANT):
+/// The Islamic day begins at Maghrib (sunset), NOT at Gregorian midnight.
+/// Therefore, for TODAY:
+///   * before Maghrib            -> Hijri date of the current Gregorian day
+///   * at/after today's Maghrib  -> Hijri date of the NEXT Gregorian day
+/// Arbitrary past/future dates (calendar rendering, events) convert plainly
+/// without any shift.
+///
+/// [maghribTime] allows callers that already fetched real prayer times to pass
+/// the exact Maghrib for the selected location. When omitted, a documented
+/// conservative approximation of 18:30 local is used — this only affects the
+/// boundary moment, never the date math itself.
 class HijriDateService {
   static const arabicMonths = [
     'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني', 'جمادى الأولى', 'جمادى الآخرة',
@@ -13,27 +28,67 @@ class HijriDateService {
     'Ramadan', 'Shawwal', 'Dhu al-Qi\'dah', 'Dhu al-Hijjah',
   ];
 
-  /// Get Hijri date for a given Gregorian date.
-  /// Uses Umm al-Qura (Saudi Arabia) calculation method via hijri package.
-  static HijriDateInfo getHijriDate(DateTime gregorian) {
+  /// Default Maghrib approximation when no real prayer time is available.
+  static const _defaultMaghribHour = 18;
+  static const _defaultMaghribMinute = 30;
+
+  /// Plain Gregorian -> Hijri conversion with NO Maghrib shift.
+  /// Exposed publicly so tests can assert against the raw conversion.
+  static HijriDateInfo convertPlain(DateTime gregorian) {
     HijriCalendar.language = 'en';
-    final dateOnly = DateTime(gregorian.year, gregorian.month, gregorian.day).subtract(const Duration(days: 1));
+    final dateOnly =
+        DateTime(gregorian.year, gregorian.month, gregorian.day);
     final calendar = HijriCalendar.fromDate(dateOnly);
-    
+    final weekday = calendar.wkDay ?? calendar.weekDay();
     return HijriDateInfo(
       day: calendar.hDay,
       month: calendar.hMonth,
       year: calendar.hYear,
       monthEn: englishMonths[calendar.hMonth - 1],
       monthAr: arabicMonths[calendar.hMonth - 1],
-      weekdayEn: _weekdayEn(calendar.wkDay ?? calendar.weekDay()),
-      weekdayAr: _weekdayAr(calendar.wkDay ?? calendar.weekDay()),
+      weekdayEn: _weekdayEn(weekday),
+      weekdayAr: _weekdayAr(weekday),
     );
   }
 
-  /// Get Hijri date for today.
-  static HijriDateInfo getTodayHijri() {
-    return getHijriDate(DateTime.now());
+  /// Hijri date for [gregorian], applying the Maghrib day-boundary rule when
+  /// [gregorian] is today in [locationTimezone].
+  static HijriDateInfo getHijriDate(
+    DateTime gregorian, {
+    String? locationTimezone,
+    DateTime? maghribTime,
+  }) {
+    final tz = locationTimezone;
+    final isToday = dateService.isToday(gregorian, timezone: tz);
+
+    if (!isToday) {
+      return convertPlain(gregorian);
+    }
+
+    final now = DateTime.now();
+    final effectiveMaghrib = maghribTime ??
+        DateTime(gregorian.year, gregorian.month, gregorian.day,
+            _defaultMaghribHour, _defaultMaghribMinute);
+
+    if (!now.isBefore(effectiveMaghrib)) {
+      // After Maghrib -> Islamic day has advanced to tomorrow.
+      final nextDay = DateTime(gregorian.year, gregorian.month, gregorian.day)
+          .add(const Duration(days: 1));
+      return convertPlain(nextDay);
+    }
+    return convertPlain(gregorian);
+  }
+
+  /// Hijri date for today (Maghrib-aware).
+  static HijriDateInfo getTodayHijri({
+    String? locationTimezone,
+    DateTime? maghribTime,
+  }) {
+    return getHijriDate(
+      DateTime.now(),
+      locationTimezone: locationTimezone,
+      maghribTime: maghribTime,
+    );
   }
 
   static String _weekdayEn(int weekday) {

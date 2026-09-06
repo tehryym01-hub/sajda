@@ -3,12 +3,84 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/models.dart';
+import '../services/date_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/streak_invite_text.dart';
 import 'invite_share_card.dart';
 
 class SharedStreakBoardScreen extends StatelessWidget {
   const SharedStreakBoardScreen({super.key});
+
+  Future<void> _leave(BuildContext context, AppState state, SharedStreakModel shared) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(state.t('Leave Streak?', 'سٹریک چھوڑیں؟'), style: const TextStyle(fontWeight: FontWeight.w800)),
+        content: Text(
+          state.t(
+            'You will stop participating in this group streak. Your history is preserved.',
+            'آپ اس گروپ سٹریک سے علیحدہ ہو جائیں گے۔ آپ کی تاریخ محفوظ رہے گی۔',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(state.t('Cancel', 'منسوخ'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(state.t('Leave', 'چھوڑیں')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final error = await state.leaveSharedStreak(shared.id);
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    Navigator.of(context).pop(); // board belongs to a streak we no longer have
+  }
+
+  Future<void> _endForEveryone(BuildContext context, AppState state, SharedStreakModel shared) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(state.t('End Streak for Everyone?', 'سب کے لیے سٹریک ختم کریں؟'), style: const TextStyle(fontWeight: FontWeight.w800)),
+        content: Text(
+          state.t(
+            'As the creator you can end this streak for all members. All history is preserved.',
+            'بنا کر کے آپ یہ سٹریک تمام ممبران کے لیے ختم کر سکتے ہیں۔ تمام تاریخ محفوظ رہے گی۔',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(state.t('Cancel', 'منسوخ'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(state.t('End Streak', 'ختم کریں')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final error = await state.endSharedStreak(shared.id);
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +100,7 @@ class SharedStreakBoardScreen extends StatelessWidget {
     final activeMembers = members.where((m) => m.isActive).toList()
       ..sort((a, b) => b.currentDay.compareTo(a.currentDay));
     final progress = shared.goalDays > 0 ? shared.currentDay / shared.goalDays : 0.0;
+    final amMember = activeMembers.any((m) => m.isCurrentUser || m.userId == state.userId);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
@@ -116,9 +189,11 @@ class SharedStreakBoardScreen extends StatelessWidget {
                   onPressed: () async {
                     final data = await state.shareStreak(shared.id);
                     if (data != null && context.mounted) {
-                      final shareText = data['shareText']?.toString() ?? '';
-                      final inviteUrl = data['inviteUrl']?.toString() ?? '';
-                      final message = inviteUrl.isNotEmpty ? '$shareText\n\n$inviteUrl' : shareText;
+                      final message = buildStreakShareMessage(
+                        shareText: data['shareText']?.toString() ?? '',
+                        inviteCode: data['inviteCode']?.toString() ?? '',
+                        inviteUrl: data['inviteUrl']?.toString() ?? '',
+                      );
                       if (message.isNotEmpty) {
                         await SharePlus.instance.share(ShareParams(text: message, subject: state.t('Join my Salah Streak', 'میرے صلاح سٹریک میں شامل ہوں')));
                       }
@@ -128,7 +203,7 @@ class SharedStreakBoardScreen extends StatelessWidget {
                 ),
               ),
               Container(
-                margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+                margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -138,6 +213,46 @@ class SharedStreakBoardScreen extends StatelessWidget {
                   icon: const Icon(Icons.group_add_rounded, color: Colors.white, size: 20),
                 ),
               ),
+              // Role-aware management: Leave (member) / End (creator).
+              if (amMember || state.amStreakCreator)
+                Container(
+                  margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
+                    onSelected: (value) {
+                      if (value == 'leave') _leave(context, state, shared);
+                      if (value == 'end') _endForEveryone(context, state, shared);
+                    },
+                    itemBuilder: (ctx) => [
+                      if (amMember && !state.amStreakCreator)
+                        PopupMenuItem(
+                          value: 'leave',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout_rounded, size: 20, color: AppColors.danger),
+                              const SizedBox(width: 10),
+                              Text(state.t('Leave Streak', 'سٹریک چھوڑیں')),
+                            ],
+                          ),
+                        ),
+                      if (state.amStreakCreator)
+                        PopupMenuItem(
+                          value: 'end',
+                          child: Row(
+                            children: [
+                              Icon(Icons.stop_circle_outlined, size: 20, color: AppColors.danger),
+                              const SizedBox(width: 10),
+                              Text(state.t('End Streak', 'سٹریک ختم کریں')),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
 
@@ -184,14 +299,14 @@ class SharedStreakBoardScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
             sliver: SliverList.separated(
               itemCount: activeMembers.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, i) {
                 final member = activeMembers[i];
                 return _LeaderboardTile(
                   rank: i + 1,
                   member: member,
                   goalDays: shared.goalDays,
-                  isMe: member.userId == state.userId,
+                  isMe: member.isCurrentUser || member.userId == state.userId,
                   state: state,
                 );
               },
@@ -235,7 +350,9 @@ class _Podium extends StatelessWidget {
     if (top3.length > 1) ordered.add(top3[1]);
     ordered.add(top3.isNotEmpty ? top3[0] : null);
     if (top3.length > 2) ordered.add(top3[2]);
-    while (ordered.length < 3) ordered.add(null);
+    while (ordered.length < 3) {
+      ordered.add(null);
+    }
 
     final barHeights = [44.0, 60.0, 34.0];
     final medalColors = [
@@ -391,12 +508,10 @@ class _LeaderboardTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final progress = goalDays > 0 ? member.currentDay / goalDays : 0.0;
-    final today = DateTime.now();
-    final lastDate = member.lastCompletedDate != null ? DateTime.tryParse(member.lastCompletedDate!) : null;
-    final isTodayDone = lastDate != null &&
-        lastDate.year == today.year &&
-        lastDate.month == today.month &&
-        lastDate.day == today.day;
+    // lastCompletedDate is a location-timezone date key (YYYY-MM-DD) —
+    // compare it against today's key in the SAME timezone.
+    final todayKey = dateService.getTodayDate(timezone: state.locationTimezone);
+    final isTodayDone = member.lastCompletedDate == todayKey;
 
     final medalColors = {
       1: const Color(0xFFFFD700),

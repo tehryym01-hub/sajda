@@ -22,14 +22,26 @@ class PrayerNotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
-  Future<void> init() async {
+  Future<void> init({String? userTimezone}) async {
     if (_initialized) return;
     tzdata.initializeTimeZones();
-    try {
-      final tzInfo = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
-    } catch (_) {
-      tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
+
+    // Prefer the user's selected-location timezone; otherwise use the device
+    // timezone; ultimate fallback Asia/Karachi.
+    var resolved = false;
+    if (userTimezone != null && userTimezone.isNotEmpty) {
+      try {
+        tz.setLocalLocation(tz.getLocation(userTimezone));
+        resolved = true;
+      } catch (_) {}
+    }
+    if (!resolved) {
+      try {
+        final tzInfo = await FlutterTimezone.getLocalTimezone();
+        tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
+      } catch (_) {
+        tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
+      }
     }
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -120,9 +132,22 @@ class PrayerNotificationService {
       final minute = int.tryParse(parts[1]);
       if (hour == null || minute == null) continue;
 
-      var when = DateTime(now.year, now.month, now.day, hour, minute);
-      if (when.isBefore(now)) {
-        when = when.add(const Duration(days: 1));
+      // Prayer times are wall-clock times in the SELECTED LOCATION's timezone.
+      // Native alarms fire on the device clock, so convert the location-tz
+      // instant into the equivalent device-local DateTime before scheduling.
+      DateTime when;
+      try {
+        final loc = tz.getLocation(timezone);
+        var inLoc = tz.TZDateTime(loc, now.year, now.month, now.day, hour, minute);
+        if (!inLoc.isAfter(tz.TZDateTime.now(loc))) {
+          inLoc = inLoc.add(const Duration(days: 1));
+        }
+        when = DateTime.fromMillisecondsSinceEpoch(inLoc.millisecondsSinceEpoch);
+      } catch (_) {
+        when = DateTime(now.year, now.month, now.day, hour, minute);
+        if (when.isBefore(now)) {
+          when = when.add(const Duration(days: 1));
+        }
       }
 
       final pMode = prayerModes?[p.name] ?? 'full';
