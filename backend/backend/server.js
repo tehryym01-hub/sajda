@@ -19,6 +19,7 @@ import wazifaRoutes from './routes/wazifaRoutes.js';
 import hijriRoutes from './routes/hijriRoutes.js';
 import authRoutes from './routes/auth.js';
 import streakRoutes from './routes/streakRoutes.js';
+import streakV2Routes from './routes/streakV2Routes.js';
 import quranRoutes from './routes/quranRoutes.js';
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
@@ -75,6 +76,10 @@ app.use('/api/wazifas', checkDBConnection, wazifaRoutes);
 app.use('/api/hijri', checkDBConnection, hijriRoutes);
 app.use('/api/auth', checkDBConnection, authRoutes);
 app.use('/api/streak', authenticateToken, checkDBConnection, streakRoutes);
+// v2 streak system (Solo + Friends & Family groups). The v1 router above
+// has no route matching `v2/...`, so requests fall through to this mount.
+// v1 stays mounted for older app versions until they are retired.
+app.use('/api/streak/v2', authenticateToken, checkDBConnection, streakV2Routes);
 app.use('/api/quran', checkDBConnection, quranRoutes);
 
 // Fallback: serve index.html for any non-API route (SPA)

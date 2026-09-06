@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   city: { type: String, default: '' },
   country: { type: String, default: '' },
   deviceId: { type: String, unique: true, sparse: true, index: true },
+  notificationsSeenAt: { type: Date }, // in-app streak notification read marker (v2 streak)
 }, { timestamps: true });
 
 userSchema.index({ displayName: 1 });
