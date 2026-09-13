@@ -14,6 +14,35 @@ class LegalScreen extends StatelessWidget {
     defaultValue: 'https://policy-production-980a.up.railway.app',
   );
 
+  static const _deleteAccountUrl = String.fromEnvironment(
+    'DELETE_ACCOUNT_URL',
+    defaultValue: 'https://policy-production-980a.up.railway.app/delete-account/',
+  );
+
+  Future<void> _openDeleteAccount(BuildContext context) async {
+    final state = context.read<AppState>();
+    final uri = Uri.tryParse(_deleteAccountUrl);
+    if (uri == null) return;
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        if (!context.mounted) return;
+        showAppSnack(
+          context,
+          state.t('Could not open deletion page link.', 'اکاؤنٹ ڈیلیٹ صفحہ کھولنے میں مسئلہ۔'),
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      showAppSnack(
+        context,
+        state.t('Could not open deletion page link.', 'اکاؤنٹ ڈیلیٹ صفحہ کھولنے میں مسئلہ۔'),
+        error: true,
+      );
+    }
+  }
+
   Future<void> _openPrivacyPolicy(BuildContext context) async {
     final state = context.read<AppState>();
     final uri = Uri.tryParse(_privacyPolicyUrl);
@@ -65,6 +94,20 @@ class LegalScreen extends StatelessWidget {
                   onPressed: () => _openPrivacyPolicy(context),
                   icon: const Icon(Icons.open_in_new_rounded),
                   label: Text(state.t('Open Privacy Policy', 'رازداری کی پالیسی کھولیں')),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  state.t(
+                    'Want to delete your account and data? Use the web deletion page — no app required.',
+                    'اپنا اکاؤنٹ اور ڈیٹا ڈیلیٹ کرنا چاہتے ہیں؟ ویب ڈیلیشن صفحہ استعمال کریں — ایپ کی ضرورت نہیں۔',
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => _openDeleteAccount(context),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: Text(state.t('Delete Account (Web)', 'اکاؤنٹ ڈیلیٹ کریں (ویب)')),
                 ),
               ],
             ),
