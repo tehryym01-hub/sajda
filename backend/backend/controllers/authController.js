@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import DeletionRequest from '../models/DeletionRequest.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getJwtSecret } from '../middleware/auth.js';
 import { verifyFirebaseIdToken, FirebaseTokenError } from '../services/firebaseAuth.js';
@@ -228,6 +229,35 @@ export const linkDevice = async (req, res, next) => {
     user.deviceId = deviceId;
     await user.save();
     res.json({ success: true, data: { linked: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/// Public account-deletion request from the web deletion page.
+/// No auth: the visitor provides their account email; a support ticket is
+/// stored in MongoDB (durable) and processed manually within 7-14 days.
+export const submitDeletionRequest = async (req, res, next) => {
+  try {
+    const { email, phone, reason, details } = req.body;
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ success: false, message: 'Email address is required.' });
+    }
+    const value = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+    const doc = await DeletionRequest.create({
+      email: value,
+      phone: String(phone || '').trim().slice(0, 40),
+      reason: String(reason || '').slice(0, 120),
+      details: String(details || '').trim().slice(0, 2000),
+    });
+    res.json({
+      success: true,
+      message: 'Your deletion request has been received. It will be processed within 7 to 14 business days.',
+      data: { requestId: doc._id },
+    });
   } catch (error) {
     next(error);
   }
