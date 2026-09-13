@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 
 let dbConnected = false;
+let lastDbError = null;
 
 const connectDB = async () => {
   if (!process.env.MONGODB_URI) {
+    lastDbError = 'MONGODB_URI not configured';
     console.warn('MONGODB_URI not configured. Running without database connection.');
     return;
   }
@@ -17,14 +19,19 @@ const connectDB = async () => {
       minPoolSize: 5,
     });
     dbConnected = true;
+    lastDbError = null;
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     mongoose.set('toObject', {});
     mongoose.set('toJSON', {});
   } catch (error) {
-    console.error(`MongoDB connection error: ${error.message}`);
+    lastDbError = `${error.name || 'Error'}: ${error.message}`;
+    console.error(`MongoDB connection error: ${lastDbError}`);
     console.warn('Server will continue running without database. Set MONGODB_URI env var to fix.');
+    // Retry in the background — Atlas/network blips or a whitelist change
+    // should not require a manual redeploy to recover.
+    setTimeout(() => { if (!dbConnected) connectDB(); }, 30000);
   }
 };
 
-export { dbConnected };
+export { dbConnected, lastDbError };
 export default connectDB;

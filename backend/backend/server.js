@@ -7,7 +7,7 @@ import compression from 'compression';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import './config/env.js';
-import connectDB, { dbConnected } from './config/db.js';
+import connectDB, { dbConnected, lastDbError } from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
 import { authenticateToken } from './middleware/auth.js';
 
@@ -78,6 +78,20 @@ app.use(express.static(distPath));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Sajda API is running' });
+});
+
+// Connectivity diagnostic — returns DB state and the last connection error
+// message (no credentials). Used to debug network-level DB issues.
+app.get('/api/db-status', (req, res) => {
+  res.json({
+    dbConnected,
+    lastError: lastDbError,
+    nodeVersion: process.version,
+    envUriPresent: !!process.env.MONGODB_URI,
+    envUriHosts: process.env.MONGODB_URI
+      ? (process.env.MONGODB_URI.match(/@([^/?]+)\//) || [])[1] || ''
+      : '',
+  });
 });
 
 app.use('/api/prayers', checkDBConnection, prayerRoutes);
