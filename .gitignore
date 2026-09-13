@@ -56,3 +56,6 @@ app.*.map.json
 # Build artifacts & temp
 /temp_policy/
 /android/build/
+
+# Local clones of separate repos
+/Account-Deletion/
