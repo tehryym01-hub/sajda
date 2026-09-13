@@ -35,6 +35,25 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep links: sajda://join/CODE invites, sajda://restore account recovery -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="sajda" android:host="join"/>
+                <data android:scheme="sajda" android:host="restore"/>
+            </intent-filter>
+            <!-- Firebase email-link (passwordless) sign-in App Links. The link
+                 lands on the project's firebaseapp.com domain; the SHA-256
+                 fingerprints registered on the Firebase Android app make
+                 autoVerify resolve to THIS app. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="sajda-b8dce.firebaseapp.com"/>
+                <data android:scheme="https" android:host="sajda-b8dce.web.app"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

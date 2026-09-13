@@ -11,6 +11,7 @@ import {
   longestRunFromDays,
   buildMonthHistory,
   relativeTime,
+  applyDailyStreakRules,
 } from '../backend/services/streakV2Logic.js';
 import { todayKeyInTz, nextDateKey, previousDateKey } from '../backend/services/streakLogic.js';
 
@@ -176,4 +177,47 @@ test('group dateKey uses the GROUP timezone, not the actor device clock', () => 
   assert.equal(todayKeyInTz('America/New_York', instant), '2026-09-06'); // -4 → 16:00
   assert.equal(previousDateKey(todayKeyInTz('Asia/Karachi', instant)), '2026-09-06');
   assert.equal(nextDateKey(previousDateKey('2026-09-07')), '2026-09-07');
+});
+
+// ---------------------------------------------------------------------------
+// DAILY STREAK RULES (applyDailyStreakRules):
+//   same day -> intact | consecutive day -> +1 | missed >= 2 days -> reset 1
+// ---------------------------------------------------------------------------
+
+test('applyDailyStreakRules: SAME DAY keeps the current streak intact', () => {
+  assert.equal(applyDailyStreakRules(7, '2026-09-07', '2026-09-07'), 7);
+  assert.equal(applyDailyStreakRules(1, '2026-09-07', '2026-09-07'), 1);
+  // Even repeated ticks on the same day never double-increment.
+  assert.equal(applyDailyStreakRules(applyDailyStreakRules(7, '2026-09-07', '2026-09-07'), '2026-09-07', '2026-09-07'), 7);
+});
+
+test('applyDailyStreakRules: CONSECUTIVE day increments by +1', () => {
+  assert.equal(applyDailyStreakRules(7, '2026-09-06', '2026-09-07'), 8);
+  assert.equal(applyDailyStreakRules(0, '2026-09-06', '2026-09-07'), 1);
+});
+
+test('applyDailyStreakRules: MISSED day (gap >= 2) resets to 1', () => {
+  // one full day skipped: last active Sep 5, today Sep 7
+  assert.equal(applyDailyStreakRules(30, '2026-09-05', '2026-09-07'), 1);
+  assert.equal(applyDailyStreakRules(30, '2026-08-01', '2026-09-07'), 1);
+});
+
+test('applyDailyStreakRules: first ever day starts a streak of 1', () => {
+  assert.equal(applyDailyStreakRules(0, null, '2026-09-07'), 1);
+  assert.equal(applyDailyStreakRules(0, '', '2026-09-07'), 1);
+});
+
+test('applyDailyStreakRules agrees with the derived-run model', () => {
+  // The set-based walk (currentRunFromDays) and the counter rules must
+  // agree: a 3-day complete run ending yesterday, today not yet done.
+  const days = new Set(['2026-09-04', '2026-09-05', '2026-09-06']);
+  const { run } = currentRunFromDays(days, '2026-09-07');
+  assert.equal(run, 3);
+  // Counter model: last completed day is yesterday -> consecutive +1 from a
+  // 2-day streak would be 3. Both models agree.
+  assert.equal(applyDailyStreakRules(2, '2026-09-06', '2026-09-07'), 3);
+  // If yesterday was MISSED (streak broke), today's completion must reset:
+  assert.equal(applyDailyStreakRules(3, '2026-09-05', '2026-09-07'), 1);
+  const broken = new Set(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04']);
+  assert.equal(currentRunFromDays(broken, '2026-09-07').run, 0); // today not yet complete, yesterday missed
 });

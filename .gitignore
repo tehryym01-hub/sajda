@@ -49,6 +49,10 @@ app.*.map.json
 /android/**/*.jks
 /android/**/*.keystore
 
+# Backend secrets — never commit
+/backend/.env
+/backend/node_modules/
+
 # Build artifacts & temp
 /temp_policy/
 /android/build/

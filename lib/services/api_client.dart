@@ -105,6 +105,9 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path) => _get(path);
 
+  /// Public POST for feature repositories (v2 streak, etc.).
+  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) => _post(path, body);
+
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
     final res = await http.post(
       Uri.parse('$_base$path'),
@@ -371,117 +374,10 @@ class ApiClient {
         .toList();
   }
 
-  // ---------- Streak ----------
-
-  Future<Map<String, dynamic>> getMyStreak() async {
-    final json = await _get('/streak/my-streak');
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> createPersonalStreak(int goalDays) async {
-    final json = await _post('/streak/personal', {'goalDays': goalDays});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> updatePrayerCompletion({
-    required String prayer,
-    required bool completed,
-    String? date,
-    String? timezone,
-  }) async {
-    final body = <String, dynamic>{
-      'prayer': prayer,
-      'completed': completed,
-    };
-    if (date != null) body['date'] = date;
-    if (timezone != null) body['timezone'] = timezone;
-    final json = await _post('/streak/completion', body);
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> pauseStreak() async {
-    final json = await _post('/streak/pause', {});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> resumeStreak() async {
-    final json = await _post('/streak/resume', {});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  /// Increases the streak target WITHOUT resetting progress.
-  Future<Map<String, dynamic>> extendStreakGoal(int goalDays) async {
-    final json = await _post('/streak/extend', {'goalDays': goalDays});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  /// Cancels (abandons) the personal streak — history is preserved.
-  Future<Map<String, dynamic>> cancelStreak() async {
-    final json = await _post('/streak/cancel', {});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  /// Ended streaks (completed/expired/cancelled) for history display.
-  Future<List<dynamic>> getPastStreaks() async {
-    final json = await _get('/streak/past');
-    return json['data']?['streaks'] as List<dynamic>? ?? [];
-  }
-
-  /// Creator-only: ends a shared streak for ALL members (history preserved).
-  Future<Map<String, dynamic>> endSharedStreak(String id) async {
-    final json = await _post('/streak/shared/$id/end', {});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<List<dynamic>> getStreakHistory() async {
-    final json = await _get('/streak/history');
-    return json['data']?['history'] as List<dynamic>? ?? [];
-  }
-
-  Future<List<dynamic>> getStreakCalendar({int? year, int? month}) async {
-    final params = <String>[];
-    if (year != null) params.add('year=$year');
-    if (month != null) params.add('month=$month');
-    final q = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await _get('/streak/calendar$q');
-    return json['data']?['calendar'] as List<dynamic>? ?? [];
-  }
-
-  Future<Map<String, dynamic>> createSharedStreak({required int goalDays, String? title}) async {
-    final body = <String, dynamic>{'goalDays': goalDays};
-    if (title != null) body['title'] = title;
-    final json = await _post('/streak/shared', body);
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> getSharedStreak(String id) async {
-    final json = await _get('/streak/shared/$id');
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> joinSharedStreak(String inviteCode) async {
-    final json = await _post('/streak/shared/join', {'inviteCode': inviteCode});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> leaveSharedStreak(String id) async {
-    final json = await _post('/streak/shared/$id/leave', {});
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> getSharedStreakInvite(String code) async {
-    final json = await _get('/streak/invite/$code');
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> shareStreak(String id) async {
-    final json = await _get('/streak/shared/$id/share');
-    return json['data'] as Map<String, dynamic>;
-  }
-
-  Future<void> revokeInvite(String id) async {
-    await _post('/streak/shared/$id/revoke-invite', {});
-  }
+  // ---------- Streak (v2) ----------
+  // The v2 streak API lives in streak_v2_api.dart (typed repository).
+  // v1 streak endpoints remain available on the server for old app versions
+  // but are no longer called from this client.
 
   // ---------- Account ----------
 

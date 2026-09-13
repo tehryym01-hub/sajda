@@ -21,7 +21,7 @@ import 'pillars_screen.dart';
 import 'qibla_screen.dart';
 import 'quran_screen.dart';
 import 'settings_screen.dart';
-import 'streak_screen.dart';
+import 'streak_home_screen.dart';
 import 'support_screen.dart';
 import 'tasbeeh_screen.dart';
 
@@ -37,7 +37,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   DateTime? _lastBackPress;
   static const _pages = [
     HomeScreen(),
-    StreakScreen(),
+    StreakHomeScreen(),
     TasbeehScreen(),
     SettingsScreen(),
   ];

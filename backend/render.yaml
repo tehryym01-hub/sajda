@@ -16,6 +16,8 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: FIREBASE_PROJECT_ID
+        value: sajda-b8dce
       - key: FRONTEND_URL
         sync: false
       - key: SMTP_HOST

@@ -11,15 +11,19 @@ import 'screens/onboarding_screen.dart';
 import 'screens/location_setup_screen.dart';
 import 'services/ayah_notification_service.dart';
 import 'services/azkar_audio_provider.dart';
+import 'services/deep_link_service.dart';
 import 'services/dua_notification_service.dart';
+import 'services/firebase_auth_service.dart';
 import 'services/prayer_notification_service.dart';
 import 'services/quran_audio_provider.dart';
 import 'services/quran_translation_provider.dart';
 import 'services/tafsir_provider.dart';
 import 'services/wazifa_notification_service.dart';
 import 'services/auth_service.dart';
+import 'screens/group_preview_screen.dart';
 import 'state/app_state.dart';
 import 'state/audio_player_state.dart';
+import 'state/streak_state.dart';
 import 'theme/app_theme.dart';
 import 'config.dart';
 import 'widgets/splash_screen.dart';
@@ -41,11 +45,17 @@ Future<void> main() async {
   await DuaNotificationService.instance.init();
   await WazifaNotificationService.instance.init();
   await AyahNotificationService.instance.init();
+  // Firebase powers passwordless (magic link) auth for the Streak system.
+  // Failure must never block the rest of the app.
+  try {
+    await FirebaseAuthService.instance.ensureInitialized();
+  } catch (_) {}
   unawaited(_requestAllPermissions());
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AppState()..load()),
+        ChangeNotifierProvider(create: (_) => StreakState()),
         ChangeNotifierProvider(create: (_) => AudioPlayerState()),
         ChangeNotifierProvider(create: (_) => AzkarAudioProvider()),
         ChangeNotifierProvider(create: (_) => QuranTranslationProvider()),
@@ -111,6 +121,127 @@ class _Root extends StatefulWidget {
 
 class _RootState extends State<_Root> {
   bool _showSplash = true;
+  StreamSubscription<String>? _linkSub;
+  bool _handlingLink = false;
+  bool _handlingAuthLink = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeepLinks());
+  }
+
+  void _initDeepLinks() {
+    DeepLinkService.instance.start();
+    _linkSub = DeepLinkService.instance.links.listen(_handleLink);
+  }
+
+  void _handleLink(String link) {
+    // Firebase magic link (passwordless sign-in) takes priority — it can
+    // arrive while the user is anywhere in the app.
+    if (FirebaseAuthService.instance.isSignInLink(link)) {
+      _handleMagicLink(link);
+      return;
+    }
+    final restore = DeepLinkService.instance.restoreFromLink(link);
+    if (restore != null) {
+      _handleRestoreLink(restore);
+      return;
+    }
+    if (_handlingLink) return;
+    _handlingLink = true;
+    try {
+      final code = DeepLinkService.instance.codeFromLink(link);
+      if (code == null) return;
+      final app = context.read<AppState>();
+      if (!app.isAuthenticated) return; // gate handled in Streak tab
+      final navigator = Navigator.of(context, rootNavigator: true);
+      navigator.push(
+        MaterialPageRoute(builder: (_) => GroupPreviewScreen(inviteCode: code)),
+      );
+    } finally {
+      _handlingLink = false;
+    }
+  }
+
+  /// Completes magic-link sign-in, exchanges the Firebase ID token on our
+  /// backend (binding streak data to the verified identity) and boots the
+  /// streak state.
+  Future<void> _handleMagicLink(String link) async {
+    if (_handlingAuthLink) return;
+    _handlingAuthLink = true;
+    String? error;
+    try {
+      error = await FirebaseAuthService.instance.tryCompleteSignIn(link);
+      if (error == null) {
+        final token = await FirebaseAuthService.instance.idToken;
+        final name = await FirebaseAuthService.takePendingName();
+        if (token == null) {
+          error = 'session_missing';
+        } else {
+          error = await AuthService.instance.exchangeFirebaseToken(
+            idToken: token,
+            displayName: name,
+          );
+        }
+      }
+    } finally {
+      _handlingAuthLink = false;
+    }
+    await FirebaseAuthService.clearPending();
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    if (error == null) {
+      app.adoptFirebaseSession();
+      unawaited(context.read<StreakState>().initialize());
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error == null
+              ? app.t('Signed in — welcome!', 'داخل ہو گیا — خوش آمدید!')
+              : app.t('Sign-in failed: $error', 'داخلہ ناکام: $error')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRestoreLink(RestoreLink link) async {
+    final app = context.read<AppState>();
+    final error = await AuthService.instance.restoreWithToken(
+      token: link.token,
+      userId: link.userId,
+      displayName: link.displayName,
+    );
+    if (!mounted) return;
+    final isUrdu = app.isUrdu;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(error == null
+            ? app.t('Account restored', 'اکاؤنٹ بحال ہو گیا')
+            : app.t('Restore failed', 'بحالی ناکام')),
+        content: Text(
+          error ??
+              app.t(
+                  'Signed in as ${link.displayName}. Please close and reopen the app.',
+                  '${link.displayName} کے طور پر داخل ہو گئے۔ براہ کرم ایپ بند کر کے دوبارہ کھولیں۔'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(isUrdu ? 'ٹھیک ہے' : 'OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

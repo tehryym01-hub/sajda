@@ -14,8 +14,26 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var pendingDeepLink: String? = null
+    private var deepLinkChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        deepLinkChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "sajda/deeplink"
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "consumeLink" -> {
+                        result.success(pendingDeepLink)
+                        pendingDeepLink = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "sajda/prayer_alarm"
@@ -67,6 +85,34 @@ class MainActivity : FlutterActivity() {
                 }
 
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDeepLinkIntent(intent)
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleDeepLinkIntent(intent)
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        val isSajdaLink = data.scheme == "sajda" && (data.host == "join" || data.host == "restore")
+        // Firebase email-link sign-in lands on https://<project>.firebaseapp.com/__/auth/action
+        val isAuthLink = data.scheme == "https" &&
+            (data.host == "sajda-b8dce.firebaseapp.com" || data.host == "sajda-b8dce.web.app") &&
+            (data.path?.startsWith("/__/auth") == true || data.getQueryParameter("oobCode") != null)
+        if (isSajdaLink || isAuthLink) {
+            val link = data.toString()
+            val handler = deepLinkChannel
+            if (handler != null) {
+                handler.invokeMethod("onLink", link)
+            } else {
+                pendingDeepLink = link
             }
         }
     }

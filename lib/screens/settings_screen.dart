@@ -6,6 +6,7 @@ import '../screens/location_setup_screen.dart';
 import '../services/api_client.dart';
 import '../services/prayer_notification_service.dart';
 import '../state/app_state.dart';
+import '../state/streak_state.dart';
 import '../theme/app_theme.dart';
 import '../config.dart';
 
@@ -323,17 +324,20 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _deleteAllData(BuildContext context, AppState state) async {
+    Future<void> finish() async {
+      await state.logout();
+      if (context.mounted) context.read<StreakState>().reset();
+    }
+
     try {
       if (state.isAuthenticated) {
         await ApiClient.instance.deleteAccount(state);
       }
-      await state.logout();
-      state.clearStreak();
+      await finish();
       if (!context.mounted) return;
       showAppSnack(context, state.t('All data deleted successfully', 'تمام ڈیٹا کامیابی سے حذف ہو گیا'));
     } catch (e) {
-      await state.logout();
-      state.clearStreak();
+      await finish();
       if (!context.mounted) return;
       showAppSnack(context, state.t('All data deleted successfully', 'تمام ڈیٹا کامیابی سے حذف ہو گیا'));
     }

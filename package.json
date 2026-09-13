@@ -1,0 +1,12 @@
+{
+  "name": "sajda",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "cd backend && npm install --omit=dev",
+    "start": "node backend/backend/server.js"
+  }
+}

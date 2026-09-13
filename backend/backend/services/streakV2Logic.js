@@ -53,6 +53,18 @@ export const isGroupDaySatisfied = (eligibleMembers, rows) => {
   return eligibleMembers.every((m) => completeByUser.has(String(m.userId)));
 };
 
+/// DAILY STREAK RULES (counter-based contract, unit-tested):
+///  - Same day:          keep the current streak intact (idempotent).
+///  - Consecutive day:   lastActive was YESTERDAY -> currentStreak + 1.
+///  - Missed >= 2 days:  lastActive older than yesterday -> reset to 1.
+/// `lastActiveDateKey === null` means a brand-new streak -> 1.
+export const applyDailyStreakRules = (currentStreak, lastActiveDateKey, todayKey) => {
+  if (!lastActiveDateKey) return 1; // first ever day
+  if (lastActiveDateKey === todayKey) return Math.max(1, currentStreak); // same day: intact
+  if (nextDateKey(lastActiveDateKey) === todayKey) return currentStreak + 1; // consecutive: +1
+  return 1; // missed >= 2 days: reset
+};
+
 /// Current streak walk over day-complete records.
 /// `completeDays`: Set of dateKeys that were completed.
 /// Walks back from today (if complete) else yesterday — the streak stays

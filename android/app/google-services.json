@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "561507178454",
+    "project_id": "sajda-b8dce",
+    "storage_bucket": "sajda-b8dce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:561507178454:android:ba1c3eb9eaa890035cf677",
+        "android_client_info": {
+          "package_name": "com.sajda.dataplus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPeYzFfksD0qLVKuXg-qSVSWb-cP96Ceg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -143,6 +143,54 @@ class AuthService {
     return data;
   }
 
+  /// Exchanges a VERIFIED Firebase ID token for this app's session token.
+  /// The backend cryptographically verifies the token and binds the account
+  /// (creating, linking by email, or claiming this device's account) to the
+  /// Firebase uid/email so streaks survive reinstalls. Returns null on
+  /// success or an error message.
+  Future<String?> exchangeFirebaseToken({
+    required String idToken,
+    String? displayName,
+  }) async {
+    final deviceId = await getDeviceId();
+    final Map<String, dynamic> json;
+    try {
+      final res = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/firebase-verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'idToken': idToken,
+          'deviceId': deviceId,
+          if (displayName != null && displayName.trim().isNotEmpty)
+            'displayName': displayName.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode >= 400) {
+        Map<String, dynamic>? body;
+        try {
+          body = jsonDecode(res.body) as Map<String, dynamic>;
+        } catch (_) {}
+        return body?['message']?.toString() ?? 'HTTP ${res.statusCode}';
+      }
+      json = jsonDecode(res.body) as Map<String, dynamic>;
+      if (json['success'] != true) {
+        return json['message']?.toString() ?? 'Verification failed';
+      }
+    } catch (_) {
+      return 'network';
+    }
+    final data = json['data'] as Map<String, dynamic>;
+    final user = data['user'] as Map<String, dynamic>;
+    final token = data['token'] as String;
+    await saveAuth(
+      token: token,
+      userId: user['_id']?.toString() ?? user['id']?.toString() ?? '',
+      displayName: user['displayName']?.toString() ?? displayName ?? '',
+      deviceId: deviceId,
+    );
+    return null;
+  }
+
   Future<Map<String, dynamic>> getProfile() async {
     final json = await _get('/auth/profile');
     final data = json['data'] as Map<String, dynamic>;
@@ -168,6 +216,35 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kDisplayName, _displayName!);
     }
+  }
+
+  /// Restores an existing account onto THIS device via a sajda://restore
+  /// deep link: links the account to the current deviceId (so future logins
+  /// keep working), then saves it as the active session.
+  /// Returns null on success, or an error message.
+  Future<String?> restoreWithToken({
+    required String token,
+    required String userId,
+    required String displayName,
+  }) async {
+    final deviceId = await getDeviceId();
+    final res = await http.post(
+      Uri.parse('${AppConfig.apiBaseUrl}/auth/link-device'),
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'deviceId': deviceId}),
+    ).timeout(const Duration(seconds: 15));
+    if (res.statusCode >= 400) return 'HTTP ${res.statusCode}';
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (json['success'] != true) {
+      return json['message']?.toString() ?? 'Restore failed';
+    }
+    await saveAuth(
+      token: token,
+      userId: userId,
+      displayName: displayName,
+      deviceId: deviceId,
+    );
+    return null;
   }
 }
 

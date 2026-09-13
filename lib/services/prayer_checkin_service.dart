@@ -4,7 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../services/api_client.dart';
+import '../services/streak_v2_api.dart';
 
 class PrayerCheckinService {
   static final PrayerCheckinService instance = PrayerCheckinService._();
@@ -114,11 +114,10 @@ class PrayerCheckinService {
       if (prayer == null || timezone == null) return;
 
       if (response.actionId == 'yes') {
-        await ApiClient.instance.updatePrayerCompletion(
-          prayer: prayer,
-          completed: true,
-          timezone: timezone,
-        );
+        // ONE canonical tick: updates the solo streak and every group the
+        // user belongs to (server fan-out). Timezone/dateKey are resolved
+        // server-side from the user's profile.
+        await StreakV2Api.instance.completePrayer(prayer);
       }
     } catch (_) {}
   }

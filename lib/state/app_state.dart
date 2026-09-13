@@ -14,6 +14,7 @@ import '../models/models.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/date_service.dart';
+import '../services/firebase_auth_service.dart';
 import '../services/hijri_date_service.dart';
 import '../services/prayer_notification_service.dart';
 
@@ -73,18 +74,6 @@ class AppState extends ChangeNotifier {
   String? _deviceId;
   String? _displayName;
 
-  StreakModel? _streak;
-  SharedStreakModel? _sharedStreak;
-  List<StreakMemberModel> _sharedMembers = [];
-  Map<String, bool> _todayProgress = {};
-  List<StreakHistoryEntry> _streakHistory = [];
-  List<StreakModel> _pastStreaks = [];
-  bool _streakLoading = false;
-  String? _streakError;
-  bool _amStreakCreator = false;
-  bool _completionInFlight = false;
-  String? _sharedFetchKey;
-  DateTime? _sharedFetchAt;
 
   String? get authToken => _authToken;
   String? get userId => _userId;
@@ -92,17 +81,6 @@ class AppState extends ChangeNotifier {
   String? get displayName => _displayName;
   bool get isAuthenticated => _authToken != null && _authToken!.isNotEmpty;
 
-  StreakModel? get streak => _streak;
-  SharedStreakModel? get sharedStreak => _sharedStreak;
-  List<StreakMemberModel> get sharedMembers => List.unmodifiable(_sharedMembers);
-  Map<String, bool> get todayProgress => Map.unmodifiable(_todayProgress);
-  List<StreakHistoryEntry> get streakHistory => List.unmodifiable(_streakHistory);
-  List<StreakModel> get pastStreaks => List.unmodifiable(_pastStreaks);
-  bool get streakLoading => _streakLoading;
-  String? get streakError => _streakError;
-  bool get amStreakCreator => _amStreakCreator;
-
-  bool get hasActiveStreak => _streak != null && _streak!.isActive;
   String get language => _language;
   bool get isUrdu => _language == 'ur';
   bool get darkMode => _darkMode;
@@ -869,6 +847,16 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Adopts the backend session created after a verified Firebase magic-link
+  /// sign-in (AuthService.exchangeFirebaseToken already saved it). Mirrors
+  /// register()/login() so every gate watching [isAuthenticated] updates.
+  void adoptFirebaseSession() {
+    _authToken = AuthService.instance.token;
+    _userId = AuthService.instance.userId;
+    _displayName = AuthService.instance.displayName;
+    notifyListeners();
+  }
+
   Future<void> updateDisplayName(String name) async {
     _displayName = name;
     notifyListeners();
@@ -882,398 +870,18 @@ class AppState extends ChangeNotifier {
 
   Future<void> logout() async {
     await AuthService.instance.clear();
+    // End the Firebase magic-link session too so the next user signs in
+    // with their own verified email.
+    try {
+      await FirebaseAuthService.instance.signOut();
+    } catch (_) {}
     _authToken = null;
     _userId = null;
     _displayName = null;
     _deviceId = null;
-    _streak = null;
-    _sharedStreak = null;
-    _sharedMembers = [];
-    _todayProgress = {};
-    _streakHistory = [];
-    _pastStreaks = [];
-    _amStreakCreator = false;
-    _sharedFetchKey = null;
-    _sharedFetchAt = null;
-    _streakLoading = false;
-    _streakError = null;
     notifyListeners();
   }
 
-  // ---------- Streak ----------
-
-  /// Recovers from an expired/invalid token (30-day JWT) by silently
-  /// re-authenticating with the stored device id and retrying once.
-  Future<bool> _recoverAuthAndRetry(Future<void> Function() action) async {
-    await AuthService.instance.clear();
-    _authToken = null;
-    try {
-      await AuthService.instance.login();
-      _authToken = AuthService.instance.token;
-      _userId = AuthService.instance.userId;
-      _displayName = AuthService.instance.displayName;
-      notifyListeners();
-      if (!isAuthenticated) return false;
-      await action();
-      return true;
-    } catch (_) {
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<void> loadMyStreak() async {
-    _streakLoading = true;
-    _streakError = null;
-    notifyListeners();
-    try {
-      final data = await ApiClient.instance.getMyStreak();
-      await _applyMyStreak(data);
-      _streakLoading = false;
-      notifyListeners();
-    } on ApiException catch (e) {
-      if (e.isAuthError) {
-        final recovered = await _recoverAuthAndRetry(() async {
-          final data = await ApiClient.instance.getMyStreak();
-          await _applyMyStreak(data);
-        });
-        _streakLoading = false;
-        if (!recovered) _streakError = e.toString();
-        notifyListeners();
-        return;
-      }
-      _streakLoading = false;
-      _streakError = e.toString();
-      notifyListeners();
-    } catch (e) {
-      _streakLoading = false;
-      _streakError = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> _applyMyStreak(Map<String, dynamic> data) async {
-    final streakJson = data['streak'];
-    _streak = streakJson != null ? StreakModel.fromJson(streakJson as Map<String, dynamic>) : null;
-    final today = data['todayProgress'] as Map<String, dynamic>? ?? {};
-    _todayProgress = {
-      'fajr': today['fajr'] == true,
-      'dhuhr': today['dhuhr'] == true,
-      'asr': today['asr'] == true,
-      'maghrib': today['maghrib'] == true,
-      'isha': today['isha'] == true,
-    };
-    if (_streak != null &&
-        _streak!.isShared &&
-        _streak!.sharedStreakId != null &&
-        _streak!.sharedStreakId!.isNotEmpty) {
-      final sharedId = _streak!.sharedStreakId!;
-      // Avoid refetching the shared board on every prayer tap: reuse data
-      // fetched less than a minute ago for the same streak.
-      final fresh = _sharedFetchKey == sharedId &&
-          _sharedFetchAt != null &&
-          DateTime.now().difference(_sharedFetchAt!) < const Duration(seconds: 60);
-      if (fresh) return;
-      try {
-        final sharedData = await ApiClient.instance.getSharedStreak(sharedId);
-        final sharedJson = sharedData['sharedStreak'];
-        if (sharedJson != null) {
-          _sharedStreak = SharedStreakModel.fromJson(sharedJson as Map<String, dynamic>);
-        }
-        final members = sharedData['members'] as List<dynamic>? ?? [];
-        _sharedMembers = members.map((m) => StreakMemberModel.fromJson(m as Map<String, dynamic>)).toList();
-        _amStreakCreator = sharedData['isCreator'] == true;
-        _sharedFetchKey = sharedId;
-        _sharedFetchAt = DateTime.now();
-      } catch (_) {
-        // Board data is supplementary — never fail the streak load on it.
-      }
-    } else {
-      _sharedStreak = null;
-      _sharedMembers = [];
-      _amStreakCreator = false;
-      _sharedFetchKey = null;
-      _sharedFetchAt = null;
-    }
-  }
-
-  Future<String?> createPersonalStreak(int goalDays) async {
-    try {
-      final data = await ApiClient.instance.createPersonalStreak(goalDays);
-      final streakJson = data['streak'];
-      if (streakJson != null) {
-        _streak = StreakModel.fromJson(streakJson);
-        notifyListeners();
-      }
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  Future<String?> updatePrayerCompletion(String prayer, bool completed) async {
-    // Prevent duplicate submissions from double taps — one in-flight
-    // mutation at a time; the server is idempotent per (user, date, prayer).
-    if (_completionInFlight) return null;
-    _completionInFlight = true;
-    try {
-      final now = DateTime.now();
-      final dateStr = dateService.formatDateAsYYYYMMDD(date: now, timezone: locationTimezone);
-      final data = await ApiClient.instance.updatePrayerCompletion(
-        prayer: prayer,
-        completed: completed,
-        date: dateStr,
-        timezone: locationTimezone,
-      );
-      final completion = data['completion'];
-      if (completion != null) {
-        _todayProgress = {
-          'fajr': completion['fajr'] == true,
-          'dhuhr': completion['dhuhr'] == true,
-          'asr': completion['asr'] == true,
-          'maghrib': completion['maghrib'] == true,
-          'isha': completion['isha'] == true,
-        };
-      }
-      await loadMyStreak();
-      return null;
-    } catch (e) {
-      return e.toString();
-    } finally {
-      _completionInFlight = false;
-    }
-  }
-
-  Future<String?> pauseStreak() async {
-    try {
-      final data = await ApiClient.instance.pauseStreak();
-      final streakJson = data['streak'];
-      if (streakJson != null) {
-        _streak = StreakModel.fromJson(streakJson);
-        notifyListeners();
-      }
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  Future<String?> resumeStreak() async {
-    try {
-      final data = await ApiClient.instance.resumeStreak();
-      final streakJson = data['streak'];
-      if (streakJson != null) {
-        _streak = StreakModel.fromJson(streakJson);
-        notifyListeners();
-      }
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  Future<void> loadStreakHistory() async {
-    try {
-      final history = await ApiClient.instance.getStreakHistory();
-      _streakHistory = history.map((e) => StreakHistoryEntry.fromJson(e as Map<String, dynamic>)).toList();
-      notifyListeners();
-    } catch (_) {}
-  }
-
-  /// Ended streaks (completed/expired/cancelled) — history is preserved.
-  Future<void> loadPastStreaks() async {
-    try {
-      final list = await ApiClient.instance.getPastStreaks();
-      _pastStreaks = list.map((e) => StreakModel.fromJson(e as Map<String, dynamic>)).toList();
-      notifyListeners();
-    } catch (_) {}
-  }
-
-  Future<List<dynamic>> loadStreakCalendar({int? year, int? month}) async {
-    try {
-      return await ApiClient.instance.getStreakCalendar(year: year, month: month);
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<String?> createSharedStreak(int goalDays, {String? title}) async {
-    try {
-      final data = await ApiClient.instance.createSharedStreak(goalDays: goalDays, title: title);
-      final shared = data['sharedStreak'];
-      if (shared != null) {
-        _sharedStreak = SharedStreakModel.fromJson(shared);
-      }
-      await loadMyStreak();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  Future<String?> loadSharedStreak(String id) async {
-    try {
-      final data = await ApiClient.instance.getSharedStreak(id);
-      final shared = data['sharedStreak'];
-      if (shared != null) {
-        _sharedStreak = SharedStreakModel.fromJson(shared);
-      }
-      final members = data['members'] as List<dynamic>? ?? [];
-      _sharedMembers = members.map((m) => StreakMemberModel.fromJson(m as Map<String, dynamic>)).toList();
-      notifyListeners();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  /// Joins (or re-opens) a shared streak via invite code.
-  /// The backend treats "already a member" as SUCCESS so the user is never
-  /// stranded — [alreadyMember] tells the UI to say "opening your streak".
-  Future<({String? error, bool alreadyMember, String? code, Map<String, dynamic>? data})> joinSharedStreak(String inviteCode) async {
-    try {
-      final data = await ApiClient.instance.joinSharedStreak(inviteCode);
-      final shared = data['sharedStreak'];
-      if (shared != null) {
-        _sharedStreak = SharedStreakModel.fromJson(shared as Map<String, dynamic>);
-        _sharedFetchKey = _sharedStreak!.id;
-        _sharedFetchAt = DateTime.now();
-      }
-      await loadMyStreak();
-      await loadStreakHistory();
-      return (error: null, alreadyMember: data['alreadyMember'] == true, code: null, data: data);
-    } on ApiException catch (e) {
-      if (e.isAuthError) {
-        final ok = await _recoverAuthAndRetry(() async {});
-        if (ok) {
-          return joinSharedStreak(inviteCode);
-        }
-      }
-      return (error: e.isNetworkError ? 'Network error — please check your connection and try again' : e.toString(), alreadyMember: false, code: e.isNetworkError ? 'NETWORK' : e.code, data: null);
-    } catch (e) {
-      return (error: e.toString(), alreadyMember: false, code: null, data: null);
-    }
-  }
-
-  /// Increases the active streak's target days. Progress is never reset;
-  /// the backend only updates goalDays/endDate (and the whole group's target
-  /// for shared streaks, creator only).
-  Future<String?> extendStreakGoal(int goalDays) async {
-    try {
-      final data = await ApiClient.instance.extendStreakGoal(goalDays);
-      final streakJson = data['streak'];
-      if (streakJson != null) {
-        _streak = StreakModel.fromJson(streakJson);
-        notifyListeners();
-      }
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  /// Leaves a shared streak (member action). Refreshes the whole streak
-  /// state afterwards so no screen shows a stale "active" streak.
-  Future<String?> leaveSharedStreak(String id) async {
-    try {
-      await ApiClient.instance.leaveSharedStreak(id);
-      _sharedStreak = null;
-      _sharedMembers = [];
-      _amStreakCreator = false;
-      _sharedFetchKey = null;
-      _sharedFetchAt = null;
-      notifyListeners();
-      await loadMyStreak();
-      await loadStreakHistory();
-      await loadPastStreaks();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  /// Creator-only: ends a shared streak for ALL members. History preserved.
-  Future<String?> endSharedStreak(String id) async {
-    try {
-      await ApiClient.instance.endSharedStreak(id);
-      await loadMyStreak();
-      await loadStreakHistory();
-      await loadPastStreaks();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  /// Cancels (abandons) the current personal streak. History preserved and
-  /// the streak moves to past streaks. For shared streaks only the creator
-  /// may cancel (ends it for everyone); members must leave instead.
-  Future<String?> cancelStreak() async {
-    try {
-      await ApiClient.instance.cancelStreak();
-      await loadMyStreak();
-      await loadStreakHistory();
-      await loadPastStreaks();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  /// Looks up an invite code. Returns structured data so the UI can render
-  /// the correct state (joinable / already member / ended / full) instead
-  /// of parsing error strings.
-  Future<({Map<String, dynamic>? data, String? error, String? code})> getSharedStreakInvite(String code) async {
-    try {
-      final data = await ApiClient.instance.getSharedStreakInvite(code);
-      return (data: data, error: null, code: null);
-    } on ApiException catch (e) {
-      if (e.isAuthError) {
-        final ok = await _recoverAuthAndRetry(() async {});
-        if (ok) {
-          try {
-            final data = await ApiClient.instance.getSharedStreakInvite(code);
-            return (data: data, error: null, code: null);
-          } on ApiException catch (e2) {
-            return (data: null, error: e2.toString(), code: e2.code);
-          }
-        }
-      }
-      return (data: null, error: e.isNetworkError ? null : e.toString(), code: e.isNetworkError ? 'NETWORK' : e.code);
-    } catch (_) {
-      return (data: null, error: null, code: 'NETWORK');
-    }
-  }
-
-  Future<Map<String, dynamic>?> shareStreak(String id) async {
-    try {
-      final data = await ApiClient.instance.shareStreak(id);
-      return data;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<void> revokeInvite(String id) async {
-    try {
-      await ApiClient.instance.revokeInvite(id);
-    } catch (_) {}
-  }
-
-  void clearStreak() {
-    _streak = null;
-    _sharedStreak = null;
-    _sharedMembers = [];
-    _todayProgress = {};
-    _streakHistory = [];
-    _pastStreaks = [];
-    _amStreakCreator = false;
-    _sharedFetchKey = null;
-    _sharedFetchAt = null;
-    _streakLoading = false;
-    _streakError = null;
-    notifyListeners();
-  }
 }
 
 extension FirstOrNull<T> on Iterable<T> {
