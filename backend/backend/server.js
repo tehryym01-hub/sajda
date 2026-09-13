@@ -63,13 +63,16 @@ app.use(compression());
 // nothing. Only enabled when explicitly running in development.
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 app.use(cors({
-  origin: ['https://sajda-privacy.onrender.com'],
+  origin: [
+    'https://policy-production-980a.up.railway.app',
+    'https://sajda-privacy.onrender.com', // legacy policy site during migration
+  ],
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve built frontend (for production deployment on Render)
+// Serve built frontend (static assets, if a frontend build is bundled)
 const distPath = join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 

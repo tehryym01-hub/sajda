@@ -1,7 +1,7 @@
 class AppConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://sajda-hn0v.onrender.com/api',
+    defaultValue: 'https://backend-production-04292.up.railway.app/api',
   );
 
   static const String appName = 'Sajda: Daily Athan & Qibla';

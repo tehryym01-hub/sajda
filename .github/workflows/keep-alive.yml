@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Ping backend
         run: |
-          curl -s https://sajda-hn0v.onrender.com/api/health || echo "Ping failed"
+          curl -s https://backend-production-04292.up.railway.app/api/health || echo "Ping failed"
