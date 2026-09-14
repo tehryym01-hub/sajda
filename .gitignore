@@ -59,3 +59,5 @@ app.*.map.json
 
 # Local clones of separate repos
 /Account-Deletion/
+
+.firebase/

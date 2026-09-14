@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opening Sajda…</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0d1b12; color: #e8f5ee;
+           display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+    .card { padding: 2.5rem 1.5rem; max-width: 420px; }
+    h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+    p { color: #9fc6af; line-height: 1.6; margin: .4rem 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Opening the Sajda app…</h1>
+    <p id="msg">If the app does not open, tap the button below.</p>
+    <p><a id="open" href="#" style="display:none; color:#7fe0a7; font-weight:600;">Open Sajda app</a></p>
+  </div>
+  <script>
+    (function () {
+      // Pass anything Firebase appended (query string) along to the app link.
+      var qs = window.location.search || '';
+      var httpsLink = 'https://sajda-b8dce.firebaseapp.com/emailSignIn' + qs;
+      var intent =
+        'intent://sajda-b8dce.firebaseapp.com/emailSignIn' + qs +
+        '#Intent;scheme=https;package=com.sajda.dataplus;S.browser_fallback_url=' +
+        encodeURIComponent(httpsLink) + ';end';
+      var open = document.getElementById('open');
+      open.href = intent;
+      open.style.display = 'inline';
+      // Try to hand off to the app automatically.
+      window.location.replace(intent);
+    })();
+  </script>
+</body>
+</html>

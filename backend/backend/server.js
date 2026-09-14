@@ -28,7 +28,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Render sits behind exactly one reverse proxy. Without this, req.ip is the
+// Railway sits behind a reverse proxy. Without this, req.ip is the
 // proxy's internal IP for EVERY client, which collapses the rate limiter
 // into one global bucket shared by all users ("Too many requests" for
 // everyone after a few app opens).
@@ -115,30 +115,14 @@ app.get('*', (req, res) => {
 
 app.use(errorHandler);
 
-function startKeepAlive() {
-  const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
-  if (!RENDER_URL) return;
-  setInterval(async () => {
-    try {
-      const res = await fetch(`${RENDER_URL}/api/health`);
-      console.log(`[KeepAlive] Ping - ${res.status} @ ${new Date().toISOString()}`);
-    } catch (err) {
-      console.error(`[KeepAlive] Failed: ${err.message}`);
-    }
-  }, 10 * 60 * 1000);
-  console.log('[KeepAlive] Started - will ping every 10 min');
-}
-
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Sajda server running on port ${PORT}`);
-    startKeepAlive();
   });
 }).catch((err) => {
   console.error('Failed to start server:', err.message);
   app.listen(PORT, () => {
     console.log(`Sajda server running on port ${PORT} (without database)`);
-    startKeepAlive();
   });
 });
 

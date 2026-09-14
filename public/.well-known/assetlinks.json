@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sajda.dataplus",
+      "sha256_cert_fingerprints": [
+        "CC:B0:B7:9B:E4:96:3E:AC:73:D2:4C:EF:9F:D6:60:80:B7:D4:42:DD:4A:CB:99:61:CF:D5:86:53:15:EE:76:B5",
+        "31:70:3B:58:A5:CA:BC:9E:AA:22:A7:FA:F0:C7:DC:66:40:19:13:4C:2D:43:9B:83:C3:2D:C6:C3:18:FE:85:AD"
+      ]
+    }
+  }
+]
