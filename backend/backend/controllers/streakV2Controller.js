@@ -11,6 +11,7 @@ import GroupActivity from '../models/GroupActivity.js';
 import JoinRequest from '../models/JoinRequest.js';
 import PushToken from '../models/PushToken.js';
 import { PRAYERS, todayKeyInTz } from '../services/streakLogic.js';
+import { pushToUsers } from '../services/fcm.js';
 import { getJwtSecret } from '../middleware/auth.js';
 import {
   GROUP_MEMBER_LIMIT_DEFAULT,
@@ -29,6 +30,14 @@ import {
 
 const fail = (res, status, code, message) =>
   res.status(status).json({ success: false, code, message });
+
+const PRAYER_LABELS = {
+  fajr: 'Fajr',
+  dhuhr: 'Dhuhr',
+  asr: 'Asr',
+  maghrib: 'Maghrib',
+  isha: 'Isha',
+};
 
 const resolveUser = async (req) => {
   const id = String(req.user?.id || req.user?._id);
@@ -237,7 +246,27 @@ export const completePrayer = async (req, res, next) => {
         );
         await flippedTrue(GroupDailyProgress, rowFilter, prayer);
         const row = await markDayComplete(GroupDailyProgress, rowFilter, completed);
-        if (eligible) await maybeCompleteGroupDay(group, gKey, { _id: user.id, displayName: user.displayName });
+        const dayCompleted = eligible
+          ? await maybeCompleteGroupDay(group, gKey, { _id: user.id, displayName: user.displayName })
+          : false;
+
+        // ── Real-time FCM (fire-and-forget; the tick NEVER depends on it) ──
+        const members = await GroupMember.find({ groupId: group.groupId, status: 'active' })
+          .select('userId').lean();
+        const others = members.filter((m) => String(m.userId) !== String(user.id));
+        const actorName = user.displayName || 'A member';
+        await pushToUsers(others.map((m) => m.userId), {
+          title: group.name,
+          body: `${actorName} completed ${PRAYER_LABELS[prayer]}`,
+          data: { type: 'prayer_completed', groupId: group.groupId, prayer },
+        });
+        if (dayCompleted) {
+          await pushToUsers(members.map((m) => m.userId), {
+            title: `${group.name} — day complete!`,
+            body: `Everyone completed all five prayers. Streak is now ${group.currentStreak + 1} — Mubarak!`,
+            data: { type: 'group_day_completed', groupId: group.groupId },
+          });
+        }
       } else {
         await flippedFalse(GroupDailyProgress, rowFilter, prayer);
         await markDayComplete(GroupDailyProgress, rowFilter, false);
