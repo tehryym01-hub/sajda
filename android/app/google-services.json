@@ -12,7 +12,20 @@
           "package_name": "com.sajda.dataplus"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "561507178454-o5bojrbgo1e7p2j3r9psq5ue2nekmpdl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sajda.dataplus",
+            "certificate_hash": "90131d4f5cd27027b4b311b093bd8f517e3b7d6d"
+          }
+        },
+        {
+          "client_id": "561507178454-jlt4lb6a5khb0181kek60b8gdgdlqk16.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCPeYzFfksD0qLVKuXg-qSVSWb-cP96Ceg"
@@ -20,10 +33,16 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "561507178454-jlt4lb6a5khb0181kek60b8gdgdlqk16.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
   ],
   "configuration_version": "1"
 }
+

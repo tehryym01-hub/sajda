@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
@@ -26,6 +27,12 @@ class FirebaseAuthService {
   static const String _continueUrl =
       'https://sajda-b8dce.firebaseapp.com/emailSignIn';
   static const String androidPackageName = 'com.sajda.dataplus';
+
+  /// Firebase web OAuth client (serverClientId) — Google issues the ID token
+  /// for this audience so FirebaseAuth can verify it. Public value from
+  /// google-services.json (oauth_client client_type 3).
+  static const String googleWebClientId =
+      '561507178454-jlt4lb6a5khb0181kek60b8gdgdlqk16.apps.googleusercontent.com';
 
   bool _initialized = false;
   bool get isReady => _initialized;
@@ -111,6 +118,37 @@ class FirebaseAuthService {
     if (uri == null || uri.scheme != 'https') return false;
     return uri.path.contains('/__/auth') ||
         uri.queryParameters.containsKey('oobCode');
+  }
+
+  /// One-tap Google sign-in — unlimited on the free Firebase plan (no email
+  /// quota). Returns null on success, 'cancelled' when the user backs out,
+  /// or an error message.
+  Future<String?> signInWithGoogle() async {
+    try {
+      await ensureInitialized();
+    } catch (_) {
+      return 'firebase_init_failed';
+    }
+    try {
+      final google = GoogleSignIn(
+        serverClientId: googleWebClientId,
+        signInOption: SignInOption.standard,
+      );
+      final account = await google.signIn();
+      if (account == null) return 'cancelled';
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        return 'google_no_id_token';
+      }
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      await _auth.signInWithCredential(credential);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.code;
+    } catch (_) {
+      return 'network';
+    }
   }
 
   /// Completes the magic-link sign-in for a captured [link].

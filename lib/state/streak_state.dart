@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/streak_v2.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/streak_v2_api.dart';
 
 enum StreakLoadPhase { idle, loading, ready, error }
@@ -74,6 +75,8 @@ class StreakState extends ChangeNotifier {
     }
     await Future.wait([refreshSolo(silent: true), refreshGroups(silent: true)]);
     unawaited(refreshNotifications());
+    // Real-time group pushes: register the FCM token against this session.
+    unawaited(PushService.instance.onSession());
   }
 
   Future<bool> _recoverAuth() async {

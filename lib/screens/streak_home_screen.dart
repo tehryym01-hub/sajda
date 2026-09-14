@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/auth_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../state/app_state.dart';
 import '../state/streak_state.dart';
@@ -13,7 +14,7 @@ import 'join_with_code_screen.dart';
 import 'my_groups_screen.dart';
 import 'solo_dashboard_screen.dart';
 
-/// The Streak tab: auth gate → Solo card + Friends & Family card.
+/// The Streak tab: auth gate â†’ Solo card + Friends & Family card.
 class StreakHomeScreen extends StatefulWidget {
   const StreakHomeScreen({super.key});
 
@@ -39,104 +40,84 @@ class _StreakHomeScreenState extends State<StreakHomeScreen> {
     final streak = context.watch<StreakState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Gate shows the email magic-link sign-in when there is no session OR
-    // the backend rejected our token (authFailed) — never a dead UI that
+    // the backend rejected our token (authFailed) â€” never a dead UI that
     // errors "Authentication required" on every tap.
     final signedIn = app.isAuthenticated && !streak.authFailed;
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       body: SafeArea(
-        child: signedIn ? const _StreakHome() : const _EmailAuthGate(),
+        child: signedIn ? const _StreakHome() : const _GoogleAuthGate(),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Auth gate — passwordless email magic link. Streak data lives on the
-// server bound to a verified email, so sign-in is required. After the
-// user taps the link, main.dart completes sign-in; this gate disappears
-// automatically once AppState.isAuthenticated flips true.
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Auth gate â€” one-tap Google sign-in. Streak data lives on the server
+// bound to a verified identity, so sign-in is required. The gate
+// disappears automatically once AppState.isAuthenticated flips true.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-class _EmailAuthGate extends StatefulWidget {
-  const _EmailAuthGate();
+class _GoogleAuthGate extends StatefulWidget {
+  const _GoogleAuthGate();
 
   @override
-  State<_EmailAuthGate> createState() => _EmailAuthGateState();
+  State<_GoogleAuthGate> createState() => _GoogleAuthGateState();
 }
 
-class _EmailAuthGateState extends State<_EmailAuthGate> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+class _GoogleAuthGateState extends State<_GoogleAuthGate> {
   bool _loading = false;
-  bool _sent = false;
-  String _sentTo = '';
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    super.dispose();
-  }
 
   String _friendlyError(String error) {
     final state = context.read<AppState>();
     if (error == 'network') {
-      return state.t('No connection. Try again.', 'انٹرنیٹ نہیں۔ دوبارہ کوشش کریں۔');
-    }
-    if (error == 'invalid_email') {
-      return state.t('Please enter a valid email', 'براہ کرم درست ای میل درج کریں');
+      return state.t('No connection. Try again.', 'Ø§Ù†Ù¹Ø±Ù†ÛŒÙ¹ Ù†ÛÛŒÚºÛ” Ø¯ÙˆØ¨Ø§Ø±Û Ú©ÙˆØ´Ø´ Ú©Ø±ÛŒÚºÛ”');
     }
     if (error.startsWith('[') || error.contains('channel-error') || error.contains('firebase_init')) {
-      return state.t('Service unavailable. Try again later.', 'سروس دستیاب نہیں۔ بعد میں کوشش کریں۔');
+      return state.t('Service unavailable. Try again later.', 'Ø³Ø±ÙˆØ³ Ø¯Ø³ØªÛŒØ§Ø¨ Ù†ÛÛŒÚºÛ” Ø¨Ø¹Ø¯ Ù…ÛŒÚº Ú©ÙˆØ´Ø´ Ú©Ø±ÛŒÚºÛ”');
     }
     if (error.contains('too-many-requests')) {
-      return state.t('Too many attempts. Try again later.', 'بہت زیادہ کوششیں۔ بعد میں کوشش کریں۔');
+      return state.t('Too many attempts. Try again later.', 'Ø¨ÛØª Ø²ÛŒØ§Ø¯Û Ú©ÙˆØ´Ø´ÛŒÚºÛ” Ø¨Ø¹Ø¯ Ù…ÛŒÚº Ú©ÙˆØ´Ø´ Ú©Ø±ÛŒÚºÛ”');
     }
-    return state.t('Could not send link: $error', 'لنک نہیں بھیج سکے: $error');
+    if (error == 'google_no_id_token' || error == 'session_missing') {
+      return state.t('Sign-in failed. Please try again.', 'Ø¯Ø§Ø®Ù„Û Ù†Ø§Ú©Ø§Ù…Û” Ø¯ÙˆØ¨Ø§Ø±Û Ú©ÙˆØ´Ø´ Ú©Ø±ÛŒÚºÛ”');
+    }
+    return state.t('Sign-in failed: $error', 'Ø¯Ø§Ø®Ù„Û Ù†Ø§Ú©Ø§Ù…: $error');
   }
 
-  Future<void> _send() async {
-    final state = context.read<AppState>();
-    final email = _emailController.text.trim();
-    if (!email.contains('@') || email.length < 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(state.t('Please enter a valid email', 'براہ کرم درست ای میل درج کریں'))),
-      );
+  /// One-tap Google sign-in: Firebase session â†’ backend token exchange â†’
+  /// AppState adoption. The gate disappears when isAuthenticated flips.
+  Future<void> _signInWithGoogle() async {
+    setState(() => _loading = true);
+    String? error = await FirebaseAuthService.instance.signInWithGoogle();
+    if (error == null) {
+      final token = await FirebaseAuthService.instance.idToken;
+      if (token == null) {
+        error = 'session_missing';
+      } else {
+        error = await AuthService.instance.exchangeFirebaseToken(
+          idToken: token,
+          displayName: FirebaseAuthService.instance.user?.displayName,
+        );
+      }
+    }
+    setState(() => _loading = false);
+    if (!mounted) return;
+    if (error == null) {
+      context.read<AppState>().adoptFirebaseSession();
+      context.read<StreakState>().initialize();
       return;
     }
-    setState(() => _loading = true);
-    final error = await FirebaseAuthService.instance.sendMagicLink(
-      email,
-      displayName: _nameController.text.trim(),
+    if (error == 'cancelled') return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_friendlyError(error))),
     );
-    setState(() {
-      _loading = false;
-      if (error == null) {
-        _sent = true;
-        _sentTo = email;
-      }
-    });
-    if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(error))),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (_sent) {
-      return _CheckInboxView(
-        email: _sentTo,
-        isDark: isDark,
-        onResend: _send,
-        onChangeEmail: () => setState(() => _sent = false),
-        loading: _loading,
-      );
-    }
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -144,85 +125,59 @@ class _EmailAuthGateState extends State<_EmailAuthGate> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 96,
-              height: 96,
+              width: 104,
+              height: 104,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: AppColors.gradientTeal),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: const [BoxShadow(color: AppColors.shadow, blurRadius: 24, offset: Offset(0, 10))],
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: const [BoxShadow(color: AppColors.shadow, blurRadius: 28, offset: Offset(0, 12))],
               ),
-              child: const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 48),
+              child: const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 52),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 30),
             Text(
-              state.t('Welcome to Sajda Streaks', 'سجدہ اسٹریک میں خوش آمدید'),
+              state.t('Never break the chain', 'Ø³Ù„Ø³Ù„Û Ú©Ø¨Ú¾ÛŒ Ù…Øª ØªÙˆÚ‘ÛŒÚº'),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
                 color: isDark ? AppColors.darkText : AppColors.lightText,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               state.t(
-                'Sign in with your email — no password. Your streak is saved to your account and survives reinstalls.',
-                'ای میل سے داخل ہوں — پاس ورڈ کی ضرورت نہیں۔ آپ کا سٹریک اکاؤنٹ سے محفوظ رہے گا۔',
+                'Login with Google and start your streak',
+                'Ú¯ÙˆÚ¯Ù„ Ø³Û’ Ù„Ø§Ú¯ Ø§ÙÙ† Ú©Ø±ÛŒÚº Ø§ÙˆØ± Ø§Ù¾Ù†Ø§ Ø³Ù„Ø³Ù„Û Ø´Ø±ÙˆØ¹ Ú©Ø±ÛŒÚº',
               ),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 height: 1.5,
                 color: isDark ? AppColors.darkMuted : AppColors.lightSecondaryText,
               ),
             ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _nameController,
-              textInputAction: TextInputAction.next,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText),
-              decoration: InputDecoration(
-                hintText: state.t('Your name (optional)', 'آپ کا نام (اختیاری)'),
-                filled: true,
-                fillColor: isDark ? AppColors.darkSurface : AppColors.lightCard,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText),
-              decoration: InputDecoration(
-                hintText: state.t('Email address', 'ای میل ایڈریس'),
-                filled: true,
-                fillColor: isDark ? AppColors.darkSurface : AppColors.lightCard,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
-              onSubmitted: (_) => _send(),
-            ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _send,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              height: 56,
+              child: OutlinedButton.icon(
+                onPressed: _loading ? null : _signInWithGoogle,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                  foregroundColor: isDark ? AppColors.darkText : AppColors.lightText,
+                  side: BorderSide(color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightBorder, width: 1.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: isDark ? 0 : 1,
                 ),
-                child: _loading
-                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                    : Text(
-                        state.t('Send sign-in link', 'داخلے کا لنک بھیجیں'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
+                icon: _loading
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))
+                    : const Icon(Icons.g_mobiledata_rounded, size: 30),
+                label: Text(
+                  state.t('Continue with Google', 'Ú¯ÙˆÚ¯Ù„ Ø³Û’ Ø¬Ø§Ø±ÛŒ Ø±Ú©Ú¾ÛŒÚº'),
+                  style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ],
@@ -232,97 +187,10 @@ class _EmailAuthGateState extends State<_EmailAuthGate> {
   }
 }
 
-class _CheckInboxView extends StatelessWidget {
-  final String email;
-  final bool isDark;
-  final bool loading;
-  final VoidCallback onResend;
-  final VoidCallback onChangeEmail;
 
-  const _CheckInboxView({
-    required this.email,
-    required this.isDark,
-    required this.loading,
-    required this.onResend,
-    required this.onChangeEmail,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : AppColors.lightCard,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.mark_email_read_outlined,
-                  color: AppColors.primary, size: 44),
-            ),
-            const SizedBox(height: 26),
-            Text(
-              state.t('Check your email', 'اپنی ای میل چیک کریں'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: isDark ? AppColors.darkText : AppColors.lightText,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              state.t(
-                'We sent a sign-in link to $email. Tap it to open the app — your streak is waiting.',
-                'ہم نے $email پر داخلے کا لنک بھیجا ہے۔ ایپ کھولنے کے لیے اس پر ٹیپ کریں۔',
-              ),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: isDark ? AppColors.darkMuted : AppColors.lightSecondaryText,
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: loading ? null : onResend,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: loading
-                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                    : Text(
-                        state.t('Resend link', 'لنک دوبارہ بھیجیں'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: onChangeEmail,
-              child: Text(state.t('Use a different email', 'دوسرا ای میل استعمال کریں')),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Main content
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _StreakHome extends StatelessWidget {
   const _StreakHome();
@@ -332,7 +200,7 @@ class _StreakHome extends StatelessWidget {
     final app = context.watch<AppState>();
     final streak = context.watch<StreakState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final refreshLabel = app.t('Refresh', 'ریفریش');
+    final refreshLabel = app.t('Refresh', 'Ø±ÛŒÙØ±ÛŒØ´');
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -352,7 +220,7 @@ class _StreakHome extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  app.t('Streaks', 'اسٹریک'),
+                  app.t('Streaks', 'Ø§Ø³Ù¹Ø±ÛŒÚ©'),
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
@@ -374,16 +242,16 @@ class _StreakHome extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // ── SOLO ──
+          // â”€â”€ SOLO â”€â”€
           _SoloCard(dark: isDark),
           const SizedBox(height: 24),
 
-          // ── FRIENDS & FAMILY ──
+          // â”€â”€ FRIENDS & FAMILY â”€â”€
           StreakSectionHeader(
-            title: app.t('Friends & Family', 'دوست اور گھر والے'),
+            title: app.t('Friends & Family', 'Ø¯ÙˆØ³Øª Ø§ÙˆØ± Ú¯Ú¾Ø± ÙˆØ§Ù„Û’'),
             action: TextButton(
               onPressed: () => _push(context, const MyGroupsScreen()),
-              child: Text(app.t('See all', 'سب دیکھیں')),
+              child: Text(app.t('See all', 'Ø³Ø¨ Ø¯ÛŒÚ©Ú¾ÛŒÚº')),
             ),
           ),
           _GroupsPreview(dark: isDark),
@@ -393,7 +261,7 @@ class _StreakHome extends StatelessWidget {
               Expanded(
                 child: _ActionTile(
                   icon: Icons.group_add_rounded,
-                  label: app.t('New group', 'نیا گروپ'),
+                  label: app.t('New group', 'Ù†ÛŒØ§ Ú¯Ø±ÙˆÙ¾'),
                   onTap: () => _push(context, const CreateGroupScreen()),
                 ),
               ),
@@ -401,7 +269,7 @@ class _StreakHome extends StatelessWidget {
               Expanded(
                 child: _ActionTile(
                   icon: Icons.vpn_key_rounded,
-                  label: app.t('Join with code', 'کوڈ سے شامل'),
+                  label: app.t('Join with code', 'Ú©ÙˆÚˆ Ø³Û’ Ø´Ø§Ù…Ù„'),
                   onTap: () => _push(context, const JoinWithCodeScreen()),
                 ),
               ),
@@ -409,7 +277,7 @@ class _StreakHome extends StatelessWidget {
               Expanded(
                 child: _ActionTile(
                   icon: Icons.search_rounded,
-                  label: app.t('Discover', 'تلاش'),
+                  label: app.t('Discover', 'ØªÙ„Ø§Ø´'),
                   onTap: () => _push(context, const DiscoverGroupsScreen()),
                 ),
               ),
@@ -517,7 +385,7 @@ class _SoloCard extends StatelessWidget {
     final app = context.watch<AppState>();
     final streak = context.watch<StreakState>();
     final solo = streak.solo;
-    final title = app.t('SOLO', 'اکیلے');
+    final title = app.t('SOLO', 'Ø§Ú©ÛŒÙ„Û’');
 
     final header = Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -541,7 +409,7 @@ class _SoloCard extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    app.t('Details', 'تفصیل'),
+                    app.t('Details', 'ØªÙØµÛŒÙ„'),
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
                   ),
                   const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.primary),
@@ -565,7 +433,7 @@ class _SoloCard extends StatelessWidget {
           header,
           ErrorCard(
             message: streak.soloError == 'network'
-                ? app.t('No connection. Check your internet.', 'انٹرنیٹ نہیں چل رہا۔')
+                ? app.t('No connection. Check your internet.', 'Ø§Ù†Ù¹Ø±Ù†ÛŒÙ¹ Ù†ÛÛŒÚº Ú†Ù„ Ø±ÛØ§Û”')
                 : (streak.soloError ?? ''),
             onRetry: () => streak.refreshSolo(),
           ),
@@ -581,10 +449,10 @@ class _SoloCard extends StatelessWidget {
           header,
           EmptyStateCard(
             icon: Icons.local_fire_department_outlined,
-            title: app.t('Start your solo streak', 'اپنا اکیلے کا سلسلہ شروع کریں'),
+            title: app.t('Start your solo streak', 'Ø§Ù¾Ù†Ø§ Ø§Ú©ÛŒÙ„Û’ Ú©Ø§ Ø³Ù„Ø³Ù„Û Ø´Ø±ÙˆØ¹ Ú©Ø±ÛŒÚº'),
             subtitle: app.t(
               'Tick five prayers a day. Your streak grows with every complete day.',
-              'روزانہ پانچ نمازیں ٹیک کریں۔ ہر مکمل دن کے ساتھ آپ کا سلسلہ بڑھے گا۔',
+              'Ø±ÙˆØ²Ø§Ù†Û Ù¾Ø§Ù†Ú† Ù†Ù…Ø§Ø²ÛŒÚº Ù¹ÛŒÚ© Ú©Ø±ÛŒÚºÛ” ÛØ± Ù…Ú©Ù…Ù„ Ø¯Ù† Ú©Û’ Ø³Ø§ØªÚ¾ Ø¢Ù¾ Ú©Ø§ Ø³Ù„Ø³Ù„Û Ø¨Ú‘Ú¾Û’ Ú¯Ø§Û”',
             ),
             action: SizedBox(
               height: 44,
@@ -596,7 +464,7 @@ class _SoloCard extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(app.t('Start streak', 'سلسلہ شروع کریں')),
+                label: Text(app.t('Start streak', 'Ø³Ù„Ø³Ù„Û Ø´Ø±ÙˆØ¹ Ú©Ø±ÛŒÚº')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -609,7 +477,7 @@ class _SoloCard extends StatelessWidget {
       );
     }
 
-    // Active solo — hero + ticks
+    // Active solo â€” hero + ticks
     final today = solo.today;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,7 +537,7 @@ class _SoloCard extends StatelessWidget {
 
   String _friendly(AppState app, String err) {
     if (err == 'network') {
-      return app.t('No connection. Check your internet.', 'انٹرنیٹ نہیں چل رہا۔');
+      return app.t('No connection. Check your internet.', 'Ø§Ù†Ù¹Ø±Ù†ÛŒÙ¹ Ù†ÛÛŒÚº Ú†Ù„ Ø±ÛØ§Û”');
     }
     return err;
   }
@@ -691,7 +559,7 @@ class _GroupsPreview extends StatelessWidget {
     if (streak.groupsPhase == StreakLoadPhase.error && streak.groups.isEmpty) {
       return ErrorCard(
         message: streak.groupsError == 'network'
-            ? app.t('No connection. Check your internet.', 'انٹرنیٹ نہیں چل رہا۔')
+            ? app.t('No connection. Check your internet.', 'Ø§Ù†Ù¹Ø±Ù†ÛŒÙ¹ Ù†ÛÛŒÚº Ú†Ù„ Ø±ÛØ§Û”')
             : (streak.groupsError ?? ''),
         onRetry: () => streak.refreshGroups(),
       );
@@ -699,10 +567,10 @@ class _GroupsPreview extends StatelessWidget {
     if (groups.isEmpty) {
       return EmptyStateCard(
         icon: Icons.family_restroom_rounded,
-        title: app.t('No groups yet', 'ابھی کوئی گروپ نہیں'),
+        title: app.t('No groups yet', 'Ø§Ø¨Ú¾ÛŒ Ú©ÙˆØ¦ÛŒ Ú¯Ø±ÙˆÙ¾ Ù†ÛÛŒÚº'),
         subtitle: app.t(
           'Create a group with family, or join friends with an invite code.',
-          'گھر والوں کے ساتھ گروپ بنائیں، یا انوائٹ کوڈ سے دوستوں میں شامل ہوں۔',
+          'Ú¯Ú¾Ø± ÙˆØ§Ù„ÙˆÚº Ú©Û’ Ø³Ø§ØªÚ¾ Ú¯Ø±ÙˆÙ¾ Ø¨Ù†Ø§Ø¦ÛŒÚºØŒ ÛŒØ§ Ø§Ù†ÙˆØ§Ø¦Ù¹ Ú©ÙˆÚˆ Ø³Û’ Ø¯ÙˆØ³ØªÙˆÚº Ù…ÛŒÚº Ø´Ø§Ù…Ù„ ÛÙˆÚºÛ”',
         ),
       );
     }
@@ -723,9 +591,9 @@ class _GroupsPreview extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Notifications sheet (in-app feed; own actions excluded server-side)
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void showNotificationsSheet(BuildContext context) {
   final streak = context.read<StreakState>();
@@ -758,7 +626,7 @@ void showNotificationsSheet(BuildContext context) {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                app.t('Notifications', 'اطلاعات'),
+                app.t('Notifications', 'Ø§Ø·Ù„Ø§Ø¹Ø§Øª'),
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -775,10 +643,10 @@ void showNotificationsSheet(BuildContext context) {
                       padding: const EdgeInsets.all(32),
                       child: EmptyStateCard(
                         icon: Icons.notifications_none_rounded,
-                        title: app.t('Nothing yet', 'ابھی کچھ نہیں'),
+                        title: app.t('Nothing yet', 'Ø§Ø¨Ú¾ÛŒ Ú©Ú†Ú¾ Ù†ÛÛŒÚº'),
                         subtitle: app.t(
                           'Group activity will appear here.',
-                          'گروپ کی سرگرمی یہاں نظر آئے گی۔',
+                          'Ú¯Ø±ÙˆÙ¾ Ú©ÛŒ Ø³Ø±Ú¯Ø±Ù…ÛŒ ÛŒÛØ§Úº Ù†Ø¸Ø± Ø¢Ø¦Û’ Ú¯ÛŒÛ”',
                         ),
                       ),
                     );
@@ -804,7 +672,7 @@ void showNotificationsSheet(BuildContext context) {
                             );
                           }
                         },
-                        child: ActivityRow(item: n, groupName: ' · ${n.notifGroupName}'),
+                        child: ActivityRow(item: n, groupName: ' Â· ${n.notifGroupName}'),
                       );
                     },
                   );
