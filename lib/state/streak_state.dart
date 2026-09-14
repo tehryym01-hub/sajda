@@ -50,11 +50,18 @@ class StreakState extends ChangeNotifier {
   bool _authenticated = false;
   bool get authenticated => _authenticated;
 
+  /// True when the backend rejected our token AND device-recovery failed —
+  /// the Streak tab must then show the email magic-link gate instead of a
+  /// dead UI that errors with "Authentication required" on every tap.
+  bool _authFailed = false;
+  bool get authFailed => _authFailed;
+
   final StreakV2Api _api = StreakV2Api.instance;
 
   /// Entry point — call on app start / streak screen open / auth change.
   Future<void> initialize() async {
     _authenticated = AuthService.instance.isAuthenticated;
+    _authFailed = false;
     if (!_authenticated) {
       _solo = null;
       _groups = [];
@@ -86,6 +93,11 @@ class StreakState extends ChangeNotifier {
     } on ApiException catch (e) {
       if (!e.isAuthError) rethrow;
       if (await _recoverAuth()) return await action();
+      // Token invalid AND no device account to fall back on — surface the
+      // email sign-in gate.
+      _authenticated = false;
+      _authFailed = true;
+      notifyListeners();
       rethrow;
     }
   }
@@ -108,6 +120,7 @@ class StreakState extends ChangeNotifier {
     } on ApiException catch (e) {
       if (e.isAuthError) {
         _authenticated = false;
+        _authFailed = true;
       }
       _soloPhase = StreakLoadPhase.error;
       _soloError = e.isNetworkError ? 'network' : e.toString();
@@ -130,7 +143,10 @@ class StreakState extends ChangeNotifier {
       _groupsPhase = StreakLoadPhase.ready;
       _groupsError = null;
     } on ApiException catch (e) {
-      if (e.isAuthError) _authenticated = false;
+      if (e.isAuthError) {
+        _authenticated = false;
+        _authFailed = true;
+      }
       _groupsPhase = StreakLoadPhase.error;
       _groupsError = e.isNetworkError ? 'network' : e.toString();
     } catch (e) {
@@ -265,6 +281,7 @@ class StreakState extends ChangeNotifier {
     _soloError = null;
     _groupsError = null;
     _authenticated = false;
+    _authFailed = false;
     notifyListeners();
   }
 }

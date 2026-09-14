@@ -79,7 +79,9 @@ class AppState extends ChangeNotifier {
   String? get userId => _userId;
   String? get deviceId => _deviceId;
   String? get displayName => _displayName;
-  bool get isAuthenticated => _authToken != null && _authToken!.isNotEmpty;
+  /// Delegates to AuthService (single source of truth): a cleared/rotated
+  /// token there is immediately reflected here — no stale-token desync.
+  bool get isAuthenticated => AuthService.instance.isAuthenticated;
 
   String get language => _language;
   bool get isUrdu => _language == 'ur';

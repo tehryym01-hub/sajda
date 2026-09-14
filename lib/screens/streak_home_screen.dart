@@ -36,11 +36,16 @@ class _StreakHomeScreenState extends State<StreakHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final streak = context.watch<StreakState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Gate shows the email magic-link sign-in when there is no session OR
+    // the backend rejected our token (authFailed) — never a dead UI that
+    // errors "Authentication required" on every tap.
+    final signedIn = app.isAuthenticated && !streak.authFailed;
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       body: SafeArea(
-        child: app.isAuthenticated ? const _StreakHome() : const _EmailAuthGate(),
+        child: signedIn ? const _StreakHome() : const _EmailAuthGate(),
       ),
     );
   }
