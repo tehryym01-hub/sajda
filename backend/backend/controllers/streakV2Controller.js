@@ -425,7 +425,7 @@ export const getMyGroups = async (req, res, next) => {
     const memberships = await GroupMember.find({ userId: user.id, status: 'active' })
       .sort({ createdAt: -1 }).lean();
     if (memberships.length === 0) return res.json({ success: true, data: { groups: [] } });
-    const groups = await Group.find({ groupId: { $in: memberships.map((m) => m.groupId) } }).lean();
+    const groups = await Group.find({ groupId: { $in: memberships.map((m) => m.groupId) } });
     const out = [];
     for (const g of groups) {
       const fresh = await rollForwardGroup(g);
@@ -715,7 +715,7 @@ export const getInvitePreview = async (req, res, next) => {
   try {
     const user = await resolveUser(req);
     const code = String(req.params?.code || '').trim().toUpperCase();
-    const group = await Group.findOne({ inviteCode: code }).lean();
+    const group = await Group.findOne({ inviteCode: code });
     if (!group || group.status !== 'active') {
       return fail(res, 404, 'INVALID_INVITE', 'This invite is invalid or the group has ended');
     }
