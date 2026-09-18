@@ -142,7 +142,11 @@ const flipPrayer = async (Model, filter, prayer, completed, insertExtras = {}) =
   const match = { ...filter, [prayer]: completed ? { $ne: true } : true };
   const update = completed
     ? {
-        $setOnInsert: { ...filter, ...insertExtras, completedCount: 0 },
+        // NOTE: completedCount must NOT appear here — $inc below already
+        // creates it as 1 on insert, and Mongo rejects the same path in
+        // two update operators ("Updating the path 'completedCount' would
+        // create a conflict at 'completedCount'").
+        $setOnInsert: { ...filter, ...insertExtras },
         $set: { [prayer]: true },
         $inc: { completedCount: 1 },
       }
