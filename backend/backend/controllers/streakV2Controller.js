@@ -175,7 +175,8 @@ const syncDayComplete = async (Model, filter) => {
         },
       },
     ],
-    { new: true },
+    // Mongoose 9 requires an explicit opt-in for pipeline (array) updates.
+    { new: true, updatePipeline: true },
   ).lean();
 };
 
