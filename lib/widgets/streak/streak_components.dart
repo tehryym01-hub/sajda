@@ -705,9 +705,13 @@ class LoadingList extends StatefulWidget {
   State<LoadingList> createState() => _LoadingListState();
 }
 
-class _LoadingListState extends State<LoadingList> {
+class _LoadingListState extends State<LoadingList>
+    with SingleTickerProviderStateMixin {
   late int _index;
   Timer? _timer;
+  late final AnimationController _anim =
+      AnimationController(vsync: this, duration: const Duration(seconds: 7))
+        ..repeat();
 
   @override
   void initState() {
@@ -724,53 +728,126 @@ class _LoadingListState extends State<LoadingList> {
   @override
   void dispose() {
     _timer?.cancel();
+    _anim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final dark = app.darkMode;
     final n = allahNames[_index];
     final meaning = app.isUrdu ? n.ur : n.en;
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(24),
       child: Center(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 450),
-          child: Column(
-            key: ValueKey(_index),
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                n.ar,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 34,
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
-                  color: dark ? Colors.white : Colors.black87,
+        child: AnimatedBuilder(
+          animation: _anim,
+          builder: (context, _) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 30),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                transform: GradientRotation(_anim.value * 2 * math.pi),
+                colors: const [
+                  Color(0xFF0E9F8A), // emerald
+                  Color(0xFF6C5CE7), // violet
+                  Color(0xFF2DA8F5), // sky
+                  Color(0xFFEF9F5A), // amber
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6C5CE7).withValues(alpha: 0.35),
+                  blurRadius: 42,
+                  offset: const Offset(0, 14),
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 450),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
+                  child: child,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                n.tr,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
-                ),
+              child: Column(
+                key: ValueKey(_index),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    n.ar,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Text(
+                      n.tr,
+                      style: const TextStyle(
+                        color: Color(0xFFFFE9B8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    meaning,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.88),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < 3; i++)
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(
+                              alpha: (0.25 +
+                                      0.75 *
+                                          (0.5 +
+                                              0.5 *
+                                                  math.sin(
+                                                    _anim.value * 2 * math.pi -
+                                                        i * 1.05,
+                                                  )))
+                                  .clamp(0.0, 1.0),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                meaning,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: dark ? Colors.white60 : AppColors.textMuted,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

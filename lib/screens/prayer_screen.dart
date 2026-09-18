@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/prayer_notification_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/prayer_window.dart';
 import '../utils/time_format.dart';
 import '../widgets/qibla_compass.dart';
 
@@ -210,7 +211,9 @@ class _PrayerScreenState extends State<PrayerScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                               state.t('Current Prayer', 'موجودہ نماز'),
+                               _activePrayerName(times) != null
+                                   ? state.t('Current Prayer', 'موجودہ نماز')
+                                   : state.t('Next Prayer', 'اگلی نماز'),
                               style: const TextStyle(color: Colors.white70, fontSize: 12),
                             ),
                             Text(
@@ -272,7 +275,9 @@ class _PrayerScreenState extends State<PrayerScreen> {
                               ),
                               if (isNext)
                                 Text(
-                                   state.t('Now', 'ابھی'),
+                                   _activePrayerName(times) == p.name
+                                       ? state.t('Now', 'ابھی')
+                                       : state.t('Next', 'اگلی'),
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 11.5,
@@ -346,26 +351,18 @@ class _PrayerScreenState extends State<PrayerScreen> {
   }
   int? _nextPrayerIndex(PrayerTimesResponse times) {
     if (times.prayers.isEmpty) return null;
-    final now = DateTime.now();
-    final currentMinutes = now.hour * 60 + now.minute;
-    final todays = times.prayers.where((p) => p.name != 'Sunrise').toList();
-    int? current;
-    for (var i = 0; i < todays.length; i++) {
-      final parts = todays[i].time.split(':');
-      if (parts.length == 2) {
-        final h = int.tryParse(parts[0]);
-        final m = int.tryParse(parts[1]);
-        if (h != null && m != null) {
-          final mins = h * 60 + m;
-          if (mins <= currentMinutes) current = i;
-        }
-      }
-    }
-    // Active window: the LAST prayer whose time has arrived stays the
-    // highlighted one until the next prayer begins; before Fajr the whole
-    // night belongs to Isha (same rule as the home card).
-    return times.prayers.indexOf(todays[current ?? todays.length - 1]);
+    // Same rules as the home card: highlight the prayer whose OWN window
+    // is still open (Fajr only until sunrise); in the gaps highlight the
+    // next upcoming prayer instead.
+    final w = computePrayerWindow(times.prayers, DateTime.now());
+    if (w == null) return null;
+    final focus = w.current ?? w.next;
+    final i = times.prayers.indexWhere((p) => p.name == focus.name);
+    return i >= 0 ? i : 0;
   }
+
+  String? _activePrayerName(PrayerTimesResponse times) =>
+      computePrayerWindow(times.prayers, DateTime.now())?.current?.name;
 
   IconData _prayerIcon(String name) {
     switch (name) {
