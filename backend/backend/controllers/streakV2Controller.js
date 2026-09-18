@@ -250,6 +250,12 @@ export const completePrayer = async (req, res, next) => {
     if (completed && !solo) solo = await SoloStreak.create({ userId: user.id });
     const soloRowFilter = { userId: new mongoose.Types.ObjectId(user.id), dateKey: soloKey };
     let soloRow = await flipPrayer(SoloDailyProgress, soloRowFilter, prayer, completed);
+    if (!soloRow) {
+      // Re-tick of an already-completed prayer (e.g. retrying after a
+      // partial failure): still refresh day-completion so a stuck 5/5
+      // row heals instead of silently staying incomplete.
+      soloRow = await SoloDailyProgress.findOne(soloRowFilter).lean();
+    }
     if (needsDaySync(soloRow)) {
       soloRow = await syncDayComplete(SoloDailyProgress, soloRowFilter);
     }
@@ -269,7 +275,11 @@ export const completePrayer = async (req, res, next) => {
       const rowFilter = { groupId: group.groupId, userId: new mongoose.Types.ObjectId(user.id), dateKey: gKey };
       let dayCompleted = false;
       if (completed) {
-        const row = await flipPrayer(GroupDailyProgress, rowFilter, prayer, true, { eligible });
+        let row = await flipPrayer(GroupDailyProgress, rowFilter, prayer, true, { eligible });
+        if (!row) {
+          // Re-tick retry: heal a row that reached 5/5 while a later step failed.
+          row = await GroupDailyProgress.findOne(rowFilter).lean();
+        }
         const freshRow = needsDaySync(row)
           ? await syncDayComplete(GroupDailyProgress, rowFilter)
           : row;
