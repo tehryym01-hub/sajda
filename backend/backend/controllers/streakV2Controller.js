@@ -561,12 +561,20 @@ export const getGroupDashboard = async (req, res, next) => {
     const ctx = await requireMembership(res, groupId, user.id, { activeOnly: false });
     if (!ctx) return;
     const { group, member } = ctx;
-    const fresh = await rollForwardGroup(group);
     const gKey = todayKeyInTz(group.timezone);
-
-    const members = await GroupMember.find({ groupId, status: 'active' })
-      .select('userId displayName role effectiveFromDate').lean();
-    const rows = await GroupDailyProgress.find({ groupId, dateKey: gKey }).lean();
+    // All five reads are independent — run them in ONE parallel round
+    // instead of sequentially (each Atlas roundtrip costs ~100ms+, which
+    // made opening a group feel like a full reload).
+    const [fresh, members, rows, summary, activity] = await Promise.all([
+      rollForwardGroup(group),
+      GroupMember.find({ groupId, status: 'active' })
+        .select('userId displayName role effectiveFromDate').lean(),
+      GroupDailyProgress.find({ groupId, dateKey: gKey }).lean(),
+      GroupDailySummary.findOne({ groupId, dateKey: gKey }).lean(),
+      // Same feed filter as getGroupActivity — per-prayer rows are retired.
+      GroupActivity.find({ groupId, type: { $ne: 'prayer_completed' } })
+        .sort({ createdAt: -1 }).limit(ACTIVITY_PAGE_SIZE).lean(),
+    ]);
     const rowByUser = new Map(rows.map((r) => [String(r.userId), r]));
     const eligibleMembers = members.filter((m) => isMemberEligibleOn(m, gKey));
     const memberProgress = members
@@ -591,10 +599,6 @@ export const getGroupDashboard = async (req, res, next) => {
 
     const required = eligibleMembers.length;
     const done = memberProgress.filter((m) => m.eligible && m.isDayComplete).length;
-    const summary = await GroupDailySummary.findOne({ groupId, dateKey: gKey }).lean();
-
-    const activity = await GroupActivity.find({ groupId })
-      .sort({ createdAt: -1 }).limit(ACTIVITY_PAGE_SIZE).lean();
 
     res.json({
       success: true,
