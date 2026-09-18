@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/streak_v2.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/allah_names.dart';
 
 /// Shared, reusable building blocks for every v2 streak screen so the whole
 /// system looks and behaves consistently.
@@ -694,14 +698,82 @@ class ErrorCard extends StatelessWidget {
   }
 }
 
-class LoadingList extends StatelessWidget {
+class LoadingList extends StatefulWidget {
   const LoadingList({super.key});
 
   @override
+  State<LoadingList> createState() => _LoadingListState();
+}
+
+class _LoadingListState extends State<LoadingList> {
+  late int _index;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // A different name every time the loader mounts — then it walks the
+    // list one name per second while the data loads.
+    _index = math.Random().nextInt(allahNames.length);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _index = (_index + 1) % allahNames.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(40),
-      child: Center(child: CircularProgressIndicator()),
+    final app = context.watch<AppState>();
+    final dark = app.darkMode;
+    final n = allahNames[_index];
+    final meaning = app.isUrdu ? n.ur : n.en;
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Center(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 450),
+          child: Column(
+            key: ValueKey(_index),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                n.ar,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 34,
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                  color: dark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                n.tr,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                meaning,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: dark ? Colors.white60 : AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
