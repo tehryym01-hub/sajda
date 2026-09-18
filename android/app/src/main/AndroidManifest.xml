@@ -63,6 +63,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".AzanStopReceiver"
+            android:exported="false" />
+
+        <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
 

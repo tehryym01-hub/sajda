@@ -7,6 +7,7 @@ import {
   effectiveFromForJoin,
   isMemberEligibleOn,
   isGroupDaySatisfied,
+  dayCompleteFromCount,
   currentRunFromDays,
   longestRunFromDays,
   buildMonthHistory,
@@ -220,4 +221,27 @@ test('applyDailyStreakRules agrees with the derived-run model', () => {
   assert.equal(applyDailyStreakRules(3, '2026-09-05', '2026-09-07'), 1);
   const broken = new Set(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04']);
   assert.equal(currentRunFromDays(broken, '2026-09-07').run, 0); // today not yet complete, yesterday missed
+});
+
+// ---------------------------------------------------------------------------
+// DAY-COMPLETION IS DERIVED — a day counts as complete ONLY at 5/5.
+// Regression: the tick endpoint once took isDayComplete from the request's
+// `completed` flag, so ONE prayer tick marked the whole day (and the group
+// day) complete. dayCompleteFromCount is the single source of truth.
+// ---------------------------------------------------------------------------
+
+test('dayCompleteFromCount: a single prayer tick must NOT complete the day', () => {
+  assert.equal(dayCompleteFromCount(0), false);
+  assert.equal(dayCompleteFromCount(1), false);
+  assert.equal(dayCompleteFromCount(2), false);
+  assert.equal(dayCompleteFromCount(3), false);
+  assert.equal(dayCompleteFromCount(4), false);
+  assert.equal(dayCompleteFromCount(5), true); // all five prayers
+});
+
+test('dayCompleteFromCount tolerates null/garbage counts', () => {
+  assert.equal(dayCompleteFromCount(null), false);
+  assert.equal(dayCompleteFromCount(undefined), false);
+  assert.equal(dayCompleteFromCount('3'), false);
+  assert.equal(dayCompleteFromCount('5'), true);
 });

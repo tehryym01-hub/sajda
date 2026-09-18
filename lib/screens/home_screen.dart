@@ -13,6 +13,7 @@ import '../services/quran_service.dart';
 import '../state/app_state.dart';
 import '../state/streak_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/time_format.dart';
 import 'adhkar_screen.dart';
 import 'main_shell.dart';
 import 'prayer_screen.dart';
@@ -29,7 +30,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  NextPrayerResponse? _next;
+  _PrayerClock? _clock;
   SearchResult? _ayah;
   List<IslamicEvent> _events = [];
   bool _loading = true;
@@ -75,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
         events = await ApiClient.instance.getTodayEvents();
       } catch (_) {}
       setState(() {
-        _next = _computeNext(times);
+        _clock = _computeClock(times);
         _events = events;
         _loading = false;
         _error = null;
@@ -102,11 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _countdown(AppState state, NextPrayerResponse next) {
-    final s = next.countdown;
-    if (s <= 0) return '--';
-    final h = s ~/ 3600;
-    final m = ((s % 3600) ~/ 60);
+  String _fmtCountdown(AppState state, int seconds) {
+    if (seconds <= 0) return '--';
+    final h = seconds ~/ 3600;
+    final m = ((seconds % 3600) ~/ 60);
     if (h > 0) {
       final hStr = state.t('h', 'گھنٹے');
       final mStr = state.t('m', 'منٹ');
@@ -116,47 +116,64 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$m $mStr';
   }
 
-  NextPrayerResponse _computeNext(PrayerTimesResponse times) {
-    final now = DateTime.now();
-    final nowMinutes = now.hour * 60 + now.minute;
-    final prayers =
-        times.prayers.where((p) => p.name != 'Sunrise').toList();
+  /// Builds the CURRENT prayer (active window) + the NEXT one. The user's
+  /// rule: when a prayer's time arrives it stays the hero until the next
+  /// prayer — "Asr ho gaya" shows Asr with the time left in its window and
+  /// Maghrib as the upcoming side chip. After Isha the window wraps around
+  /// midnight to tomorrow's Fajr.
+  _PrayerClock? _computeClock(PrayerTimesResponse times) {
+    final prayers = times.prayers.where((p) => p.name != 'Sunrise').toList();
+    if (prayers.isEmpty) return null;
 
-    for (final p in prayers) {
-      final parts = p.time.split(':');
-      if (parts.length != 2) continue;
-      final pm = int.tryParse(parts[0]);
-      final pMin = int.tryParse(parts[1]);
-      if (pm == null || pMin == null) continue;
-      final minutes = pm * 60 + pMin;
-      if (minutes > nowMinutes) {
-        final totalMinutes = minutes - nowMinutes;
-        return NextPrayerResponse(
-          currentTime: '',
-          name: p.name,
-          time: p.time,
-          totalMinutes: totalMinutes,
-          isTomorrow: false,
-          countdown: totalMinutes * 60,
-          allPrayers: prayers,
-          hijri: times.hijri,
-        );
-      }
+    int minsOf(String t) {
+      final parts = t.split(':');
+      if (parts.length != 2) return -1;
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (h == null || m == null) return -1;
+      return h * 60 + m;
     }
 
-    final fajr = prayers.first;
-    final parts = fajr.time.split(':');
-    final fajrMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
-    final totalMinutes = (24 * 60 - nowMinutes) + fajrMinutes;
-    return NextPrayerResponse(
-      currentTime: '',
-      name: fajr.name,
-      time: fajr.time,
-      totalMinutes: totalMinutes,
-      isTomorrow: true,
-      countdown: totalMinutes * 60,
-      allPrayers: prayers,
-      hijri: times.hijri,
+    final parsed = <({PrayerTime p, int min})>[
+      for (final p in prayers)
+        if (minsOf(p.time) >= 0) (p: p, min: minsOf(p.time)),
+    ];
+    if (parsed.isEmpty) return null;
+    parsed.sort((a, b) => a.min.compareTo(b.min));
+
+    final now = DateTime.now();
+    final nowMin = now.hour * 60 + now.minute;
+
+    ({PrayerTime p, int min})? current;
+    for (final e in parsed) {
+      if (e.min <= nowMin) current = e;
+    }
+    final bool wrapsMidnight;
+    ({PrayerTime p, int min}) next;
+    if (current == null) {
+      // Between 00:00 and Fajr: yesterday's Isha is still the active
+      // window (same clock time) and Fajr is next.
+      current = parsed.last;
+      wrapsMidnight = true;
+      next = parsed.first;
+    } else {
+      final idx = parsed.indexOf(current);
+      final isLast = idx == parsed.length - 1;
+      wrapsMidnight = isLast;
+      next = isLast ? parsed.first : parsed[idx + 1];
+    }
+
+    final windowStart = current.min;
+    final windowEnd = wrapsMidnight ? 24 * 60 + next.min : next.min;
+    final elapsed = (nowMin - windowStart + 24 * 60) % (24 * 60);
+    final total = windowEnd - windowStart;
+    final endsIn = windowEnd - (wrapsMidnight ? nowMin + 24 * 60 : nowMin);
+    return _PrayerClock(
+      current: current.p,
+      next: next.p,
+      nextIsTomorrow: wrapsMidnight,
+      endsInSec: endsIn * 60,
+      progress: total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 0.0,
     );
   }
 
@@ -294,12 +311,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final state = context.watch<AppState>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final lang = state.language;
-    final next = _next;
-    final nextName = next == null
+    final clock = _clock;
+    final currentName = clock == null
         ? state.t('Loading...', 'لوڈ ہو رہا ہے...')
-        : (lang == 'ur'
-            ? AppStrings.prayerNames[next.name] ?? next.name
-            : next.name);
+        : (state.language == 'ur'
+            ? AppStrings.prayerNames[clock.current.name] ?? clock.current.name
+            : clock.current.name);
 
     return Scaffold(
       backgroundColor:
@@ -456,95 +473,156 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      // Next Prayer
-                      Text(
-                        state.t('NEXT PRAYER', 'اگلی نماز'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 11,
-                          letterSpacing: 1.8,
-                          fontWeight: FontWeight.w700,
+                      if (clock == null) ...[
+                        Text(
+                          state.t('Loading...', 'لوڈ ہو رہا ہے...'),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              nextName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            next?.time ?? '',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Countdown
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.timer_rounded,
+                      ] else ...[
+                        // Current Prayer — the ACTIVE window stays the hero
+                        // until the next prayer arrives (user's rule).
+                        Text(
+                          state.t('CURRENT PRAYER', 'موجودہ نماز'),
+                          style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.6),
-                            size: 18,
+                            fontSize: 11,
+                            letterSpacing: 1.8,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _countdown(
-                                state,
-                                next ??
-                                    NextPrayerResponse(
-                                      currentTime: '',
-                                      name: '',
-                                      time: '',
-                                      totalMinutes: 0,
-                                      isTomorrow: false,
-                                      countdown: 0,
-                                      allPrayers: [],
-                                      hijri: HijriInfo(),
-                                    ),
-                              ),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          if (next != null && next.isTomorrow)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
                               child: Text(
-                                state.t('Tomorrow', 'کل'),
+                                currentName,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
+                                  fontSize: 32,
                                   fontWeight: FontWeight.w900,
+                                  height: 1.1,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                formatTime12(clock.current.time),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // Elapsed fraction of the current prayer window.
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(99),
+                          child: SizedBox(
+                            height: 6,
+                            child: Stack(
+                              children: [
+                                Container(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                ),
+                                FractionallySizedBox(
+                                  widthFactor: clock.progress,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.white.withValues(alpha: 0.7),
+                                          Colors.white,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Ends-in countdown + upcoming prayer on the side.
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.hourglass_bottom_rounded,
+                              color: Colors.white.withValues(alpha: 0.75),
+                              size: 15,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                '${state.t('Ends in', 'باقی')} ${_fmtCountdown(state, clock.endsInSec)}',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const Spacer(),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        '${state.t('Next', 'اگلی')}: ${lang == 'ur' ? (AppStrings.prayerNames[clock.next.name] ?? clock.next.name) : clock.next.name} · ${formatTime12(clock.next.time)}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (clock.nextIsTomorrow) ...[
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        state.t('Tomorrow', 'کل'),
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.75),
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1003,4 +1081,25 @@ class _HomeStreakCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Active prayer window for the home hero card: the CURRENT prayer stays
+/// the hero until the next one arrives; [endsInSec] is how long its window
+/// has left (= time until the next prayer), [progress] is the elapsed
+/// fraction of the window, and [nextIsTomorrow] covers the Isha → Fajr
+/// wrap around midnight.
+class _PrayerClock {
+  final PrayerTime current;
+  final PrayerTime next;
+  final bool nextIsTomorrow;
+  final int endsInSec;
+  final double progress;
+
+  const _PrayerClock({
+    required this.current,
+    required this.next,
+    required this.nextIsTomorrow,
+    required this.endsInSec,
+    required this.progress,
+  });
 }

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
@@ -148,47 +150,67 @@ class AuthService {
   /// (creating, linking by email, or claiming this device's account) to the
   /// Firebase uid/email so streaks survive reinstalls. Returns null on
   /// success or an error message.
+  ///
+  /// Errors are HONEST: 'timeout' (server slow/unreachable in time),
+  /// 'network' (socket/TLS), 'server_response' (non-JSON reply) — the old
+  /// blanket 'network' hid every real cause behind "No connection".
   Future<String?> exchangeFirebaseToken({
     required String idToken,
     String? displayName,
   }) async {
     final deviceId = await getDeviceId();
-    final Map<String, dynamic> json;
-    try {
-      final res = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/auth/firebase-verify'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'idToken': idToken,
-          'deviceId': deviceId,
-          if (displayName != null && displayName.trim().isNotEmpty)
-            'displayName': displayName.trim(),
-        }),
-      ).timeout(const Duration(seconds: 15));
-      if (res.statusCode >= 400) {
-        Map<String, dynamic>? body;
-        try {
-          body = jsonDecode(res.body) as Map<String, dynamic>;
-        } catch (_) {}
-        return body?['message']?.toString() ?? 'HTTP ${res.statusCode}';
+    final body = jsonEncode({
+      'idToken': idToken,
+      'deviceId': deviceId,
+      if (displayName != null && displayName.trim().isNotEmpty)
+        'displayName': displayName.trim(),
+    });
+
+    // One transparent retry: Railway's first request after an idle period
+    // can exceed the window; a single retry covers the cold path without
+    // ever masking the failure mode.
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final res = await http.post(
+          Uri.parse('${AppConfig.apiBaseUrl}/auth/firebase-verify'),
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        ).timeout(const Duration(seconds: 30));
+        if (res.statusCode >= 400) {
+          Map<String, dynamic>? json;
+          try {
+            json = jsonDecode(res.body) as Map<String, dynamic>;
+          } catch (_) {}
+          return json?['message']?.toString() ?? 'HTTP ${res.statusCode}';
+        }
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        if (json['success'] != true) {
+          return json['message']?.toString() ?? 'Verification failed';
+        }
+        final data = json['data'] as Map<String, dynamic>;
+        final user = data['user'] as Map<String, dynamic>;
+        final token = data['token'] as String;
+        await saveAuth(
+          token: token,
+          userId: user['_id']?.toString() ?? user['id']?.toString() ?? '',
+          displayName: user['displayName']?.toString() ?? displayName ?? '',
+          deviceId: deviceId,
+        );
+        return null;
+      } on TimeoutException catch (e) {
+        lastError = e;
+      } on SocketException catch (e) {
+        lastError = e; // connection refused/DNS — retry won't help instantly
+        break;
+      } on FormatException {
+        return 'server_response';
+      } catch (e) {
+        lastError = e;
       }
-      json = jsonDecode(res.body) as Map<String, dynamic>;
-      if (json['success'] != true) {
-        return json['message']?.toString() ?? 'Verification failed';
-      }
-    } catch (_) {
-      return 'network';
     }
-    final data = json['data'] as Map<String, dynamic>;
-    final user = data['user'] as Map<String, dynamic>;
-    final token = data['token'] as String;
-    await saveAuth(
-      token: token,
-      userId: user['_id']?.toString() ?? user['id']?.toString() ?? '',
-      displayName: user['displayName']?.toString() ?? displayName ?? '',
-      deviceId: deviceId,
-    );
-    return null;
+    assert(lastError != null);
+    return lastError is SocketException ? 'network' : 'timeout';
   }
 
   Future<Map<String, dynamic>> getProfile() async {

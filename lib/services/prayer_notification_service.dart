@@ -6,6 +6,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../config.dart';
 import '../models/models.dart';
+import '../utils/time_format.dart';
 import 'prayer_native_alarm.dart';
 
 class PrayerNotificationService {
@@ -171,10 +172,10 @@ class PrayerNotificationService {
           notificationId: id,
         );
         if (!success) {
-          errors.add('$prayerName ${p.time}: native alarm failed');
+          errors.add('$prayerName ${formatTime12(p.time)}: native alarm failed');
         }
       } catch (e) {
-        errors.add('$prayerName ${p.time}: $e');
+        errors.add('$prayerName ${formatTime12(p.time)}: $e');
       }
 
       if (pMode != 'mute') {
@@ -190,10 +191,10 @@ class PrayerNotificationService {
             notificationId: _reminderIdBase + (id - _notificationIdBase),
           );
           if (!success) {
-            errors.add('Reminder $prayerName ${p.time}: native alarm failed');
+            errors.add('Reminder $prayerName ${formatTime12(p.time)}: native alarm failed');
           }
         } catch (e) {
-          errors.add('Reminder $prayerName ${p.time}: $e');
+          errors.add('Reminder $prayerName ${formatTime12(p.time)}: $e');
         }
       }
       id++;

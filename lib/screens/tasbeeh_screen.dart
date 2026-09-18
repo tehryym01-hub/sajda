@@ -61,8 +61,12 @@ class _TasbeehScreenState extends State<TasbeehScreen> {
   void _increment() async {
     final state = context.read<AppState>();
     if (state.tasbeehVibration) {
+      // Native vibration first (real vibration motor); HapticFeedback as
+      // the fallback on EVERY failure path — a silent `false`/error from
+      // the channel used to leave release builds with no feedback at all.
       try {
-        await _channel.invokeMethod('vibrate', {'duration': 50});
+        final ok = await _channel.invokeMethod('vibrate', {'duration': 50});
+        if (ok != true) HapticFeedback.heavyImpact();
       } catch (_) {
         HapticFeedback.heavyImpact();
       }

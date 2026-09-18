@@ -59,11 +59,41 @@ class StreakState extends ChangeNotifier {
 
   final StreakV2Api _api = StreakV2Api.instance;
 
+  // ── Day-change detection (stale-data fix) ──
+  // The screens live in an IndexedStack, so their initState runs once per
+  // app session — without an explicit rollover check the UI kept showing
+  // YESTERDAY's ticks after midnight until a full app restart.
+  String? _lastLoadedLocalDay;
+  Timer? _dayWatch;
+  bool _rolling = false;
+
+  /// Local (device) calendar day key, YYYY-MM-DD.
+  static String get _todayLocalKey {
+    final n = DateTime.now();
+    final m = n.month.toString().padLeft(2, '0');
+    final d = n.day.toString().padLeft(2, '0');
+    return '${n.year.toString().padLeft(4, '0')}-$m-$d';
+  }
+
+  /// True when the app is still showing data loaded on a previous day.
+  bool get isStaleDay =>
+      _lastLoadedLocalDay != null && _lastLoadedLocalDay != _todayLocalKey;
+
+  void _startDayWatch() {
+    _dayWatch?.cancel();
+    _dayWatch = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (isStaleDay) refreshIfDayChanged();
+    });
+  }
+
   /// Entry point — call on app start / streak screen open / auth change.
   Future<void> initialize() async {
     _authenticated = AuthService.instance.isAuthenticated;
     _authFailed = false;
     if (!_authenticated) {
+      _dayWatch?.cancel();
+      _dayWatch = null;
+      _lastLoadedLocalDay = null;
       _solo = null;
       _groups = [];
       _notifications = [];
@@ -74,6 +104,8 @@ class StreakState extends ChangeNotifier {
       return;
     }
     await Future.wait([refreshSolo(silent: true), refreshGroups(silent: true)]);
+    _lastLoadedLocalDay = _todayLocalKey;
+    _startDayWatch();
     unawaited(refreshNotifications());
     // Real-time group pushes: register the FCM token against this session.
     unawaited(PushService.instance.onSession());
@@ -102,6 +134,21 @@ class StreakState extends ChangeNotifier {
       _authFailed = true;
       notifyListeners();
       rethrow;
+    }
+  }
+
+  /// Called when the Streak tab becomes visible again or the app resumes:
+  /// full re-fetch ONLY when the local day has rolled over — otherwise the
+  /// cached state is already current and nothing is downloaded.
+  Future<void> refreshIfDayChanged() async {
+    if (_rolling || !isStaleDay || !AuthService.instance.isAuthenticated) {
+      return;
+    }
+    _rolling = true;
+    try {
+      await initialize();
+    } finally {
+      _rolling = false;
     }
   }
 
@@ -275,6 +322,10 @@ class StreakState extends ChangeNotifier {
   Future<void> groupsChanged() => refreshGroups(silent: true);
 
   void reset() {
+    _dayWatch?.cancel();
+    _dayWatch = null;
+    _lastLoadedLocalDay = null;
+    _rolling = false;
     _solo = null;
     _groups = [];
     _notifications = [];

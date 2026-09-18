@@ -15,6 +15,7 @@ import 'services/deep_link_service.dart';
 import 'services/dua_notification_service.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/prayer_notification_service.dart';
+import 'services/push_service.dart';
 import 'services/quran_audio_provider.dart';
 import 'services/quran_translation_provider.dart';
 import 'services/tafsir_provider.dart';
@@ -90,6 +91,8 @@ class SajdaApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Sajda: Daily Athan & Qibla',
+      // Notification taps route through this key (PushService).
+      navigatorKey: PushService.navigatorKey,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: state.darkMode ? ThemeMode.dark : ThemeMode.light,

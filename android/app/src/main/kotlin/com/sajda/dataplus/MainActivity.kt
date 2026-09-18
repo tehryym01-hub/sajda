@@ -66,7 +66,11 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "vibrate" -> {
-                    val duration = call.argument<Long>("duration") ?: 50L
+                    // Dart ints decode as java Integer — an argument<Long>
+                    // cast throws ClassCastException and used to die here
+                    // SILENTLY (success(false)), which is why release builds
+                    // never vibrated. Read as Number and convert.
+                    val duration = (call.argument<Number>("duration") ?: 50L).toLong()
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -80,7 +84,10 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(true)
                     } catch (e: Exception) {
-                        result.success(false)
+                        Log.w(TAG, "Native vibrate failed: ${e.message}")
+                        // Report the failure so the Dart side can fall back
+                        // to HapticFeedback instead of silently doing nothing.
+                        result.error("VIBRATE_FAILED", e.message, null)
                     }
                 }
 

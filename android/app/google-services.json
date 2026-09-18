@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "561507178454-3aac5di0daq4fa4u8khu7ovsm7d28har.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sajda.dataplus",
+            "certificate_hash": "5f351ad0f54b4c8f72e5a88c61ff0d3788777388"
+          }
+        },
+        {
+          "client_id": "561507178454-il0t9uq222j49ep1jjt55pvm0nl7hoev.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sajda.dataplus",
+            "certificate_hash": "ab150b313ce00f3fe68fbf086ec405ebb27b16a7"
+          }
+        },
+        {
           "client_id": "561507178454-o5bojrbgo1e7p2j3r9psq5ue2nekmpdl.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -45,4 +61,3 @@
   ],
   "configuration_version": "1"
 }
-

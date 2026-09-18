@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
@@ -123,6 +127,10 @@ class FirebaseAuthService {
   /// One-tap Google sign-in — unlimited on the free Firebase plan (no email
   /// quota). Returns null on success, 'cancelled' when the user backs out,
   /// or an error message.
+  ///
+  /// Error codes are HONEST — never a blanket 'network'. The Play-Store
+  /// signing-key mismatch surfaces as PlatformException code 10/12500
+  /// (DEVELOPER_ERROR) and used to masquerade as "No connection".
   Future<String?> signInWithGoogle() async {
     try {
       await ensureInitialized();
@@ -144,10 +152,19 @@ class FirebaseAuthService {
       final credential = GoogleAuthProvider.credential(idToken: idToken);
       await _auth.signInWithCredential(credential);
       return null;
+    } on PlatformException catch (e) {
+      // 10 = DEVELOPER_ERROR, 12500 = SIGN_IN_FAILED — both mean the app's
+      // signing certificate is not registered in Firebase (or Play Services
+      // is broken on the device). Surface the code so the real cause shows.
+      if (e.code == '10' || e.code == '12500') return 'sign_in_config';
+      return 'google_platform:${e.code}';
     } on FirebaseAuthException catch (e) {
       return e.code;
-    } catch (_) {
-      return 'network';
+    } catch (e) {
+      // Socket errors are genuine connectivity; anything else is unexpected
+      // and gets a distinguishable code instead of hiding as 'network'.
+      if (e is SocketException || e is http.ClientException) return 'network';
+      return 'google_unknown:${e.runtimeType}';
     }
   }
 

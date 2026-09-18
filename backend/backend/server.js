@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import './config/env.js';
 import connectDB, { dbConnected, lastDbError } from './config/db.js';
+import { fcmEnabled } from './services/fcm.js';
 import errorHandler from './middleware/errorHandler.js';
 import { authenticateToken } from './middleware/auth.js';
 
@@ -91,6 +92,15 @@ app.get('/api/db-status', (req, res) => {
     envUriHosts: process.env.MONGODB_URI
       ? (process.env.MONGODB_URI.match(/@([^/?]+)\//) || [])[1] || ''
       : '',
+  });
+});
+
+// Push diagnostic — is FIREBASE_SERVICE_ACCOUNT loaded and does any device
+// token exist? Used to debug missing group-join / streak notifications.
+app.get('/api/fcm-status', (req, res) => {
+  res.json({
+    fcmEnabled: fcmEnabled(),
+    serviceAccountPresent: !!process.env.FIREBASE_SERVICE_ACCOUNT,
   });
 });
 

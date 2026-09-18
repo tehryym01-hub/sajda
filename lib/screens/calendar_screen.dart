@@ -7,6 +7,7 @@ import '../services/api_client.dart';
 import '../services/hijri_date_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/time_format.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -318,7 +319,7 @@ class _CalendarGrid extends StatelessWidget {
                       child: Row(
                         children: [
                           Expanded(child: Text(state.t(n, n))),
-                          Text(p?.time ?? '-',
+                          Text(p == null ? '-' : formatTime12(p.time),
                               style: const TextStyle(fontWeight: FontWeight.w700)),
                         ],
                       ),

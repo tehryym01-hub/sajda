@@ -4,6 +4,7 @@
 // key in a defined timezone, never a rolling 24-hour window.
 import crypto from 'crypto';
 import {
+  PRAYERS,
   todayKeyInTz,
   nextDateKey,
   previousDateKey,
@@ -52,6 +53,13 @@ export const isGroupDaySatisfied = (eligibleMembers, rows) => {
   );
   return eligibleMembers.every((m) => completeByUser.has(String(m.userId)));
 };
+
+/// A day (solo or a member's group row) counts as complete ONLY when ALL
+/// five prayers are ticked — derived from completedCount, NEVER from the
+/// request's completed flag. This is the single source of truth for the
+/// derived-write used by the controller and the repair script.
+export const dayCompleteFromCount = (completedCount, total = PRAYERS.length) =>
+  (Number(completedCount) || 0) >= total;
 
 /// DAILY STREAK RULES (counter-based contract, unit-tested):
 ///  - Same day:          keep the current streak intact (idempotent).

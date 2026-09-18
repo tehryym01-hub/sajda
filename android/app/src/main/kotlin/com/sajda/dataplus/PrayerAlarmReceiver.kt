@@ -1,5 +1,6 @@
 package com.sajda.dataplus
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -120,7 +121,12 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
 
         val soundUri = Uri.parse("android.resource://${context.packageName}/raw/adhan")
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        // Azan (full mode): the notification is ONGOING and swipe-proof —
+        // dismissing it used to cut the adhan mid-play. The user stops it
+        // via the "Stop Azan" action, or it auto-stops after 4 minutes.
+        val isAzan = mode == "full" && !isReminder
+
+        val builder = NotificationCompat.Builder(context, channelId)
             .setContentTitle(title)
             .setContentText(body)
             .setSmallIcon(context.applicationInfo.icon)
@@ -128,13 +134,42 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
+            .setAutoCancel(!isAzan)
+            .setOngoing(isAzan)
             .setSound(soundUri)
             .setVibrate(if (mode == "full" && !isReminder) longArrayOf(0, 800, 400, 800) else longArrayOf(0, 300, 200, 300))
-            .build()
 
-        notificationManager.notify(notificationId, notification)
-        Log.d(TAG, "Notification shown: $prayerName (id: $notificationId)")
+        if (isAzan) {
+            val stopLabel = if (isUrdu) "اذان بند کریں" else "Stop Azan"
+            val stopIntent = Intent(context, AzanStopReceiver::class.java).apply {
+                putExtra(AzanStopReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            val stopPending = PendingIntent.getBroadcast(
+                context,
+                notificationId,
+                stopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(0, stopLabel, stopPending)
+
+            // Auto-stop after 4 minutes (adhan.ogg is ~3-4 min) — a
+            // forgotten ongoing notification must not linger forever.
+            try {
+                val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                val autoStop = PendingIntent.getBroadcast(
+                    context,
+                    notificationId + 100000,
+                    stopIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                am.set(AlarmManager.RTC, System.currentTimeMillis() + 4 * 60 * 1000L, autoStop)
+            } catch (e: Exception) {
+                Log.w(TAG, "Auto-stop schedule failed: ${e.message}")
+            }
+        }
+
+        notificationManager.notify(notificationId, builder.build())
+        Log.d(TAG, "Notification shown: $prayerName (id: $notificationId, ongoing=$isAzan)")
     }
 
     companion object {

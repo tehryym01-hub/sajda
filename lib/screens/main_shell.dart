@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../state/streak_state.dart';
 import '../services/api_client.dart';
 import '../services/ayah_notification_service.dart';
 import '../services/dua_notification_service.dart';
 import '../services/prayer_checkin_service.dart';
 import '../services/prayer_notification_service.dart';
+import '../services/push_service.dart';
 import '../services/wazifa_notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mini_player_bar.dart';
@@ -48,6 +52,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleDailyNotifications(context);
+      // FCM registration + tap listeners for authenticated sessions —
+      // covers app boot with an existing session (the Streak tab covers
+      // the fresh sign-in case).
+      if (context.read<AppState>().isAuthenticated) {
+        unawaited(PushService.instance.onSession());
+      }
     });
   }
 
@@ -55,6 +65,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _scheduleDailyNotifications(context);
+      // The app may have slept through midnight — refresh streak data when
+      // the local day has rolled over (cheap no-op otherwise).
+      context.read<StreakState>().refreshIfDayChanged();
     }
   }
 
@@ -142,7 +155,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                      backgroundColor: Colors.transparent,
                      elevation: 0,
                      selectedIndex: _index,
-                     onDestinationSelected: (i) => setState(() => _index = i),
+                      onDestinationSelected: (i) {
+                        setState(() => _index = i);
+                        // Returning to the Streak tab must never show
+                        // yesterday's ticks after midnight.
+                        if (i == 1) context.read<StreakState>().refreshIfDayChanged();
+                      },
                      indicatorColor: isDark ? AppColors.primary.withValues(alpha: 0.25) : AppColors.primaryLight,
                      indicatorShape: const RoundedRectangleBorder(
                        borderRadius: BorderRadius.all(Radius.circular(18)),

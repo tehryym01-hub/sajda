@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/prayer_notification_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/time_format.dart';
 import '../widgets/qibla_compass.dart';
 
 class PrayerScreen extends StatefulWidget {
@@ -209,7 +210,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                               state.t('Next Prayer', 'اگلی نماز'),
+                               state.t('Current Prayer', 'موجودہ نماز'),
                               style: const TextStyle(color: Colors.white70, fontSize: 12),
                             ),
                             Text(
@@ -223,7 +224,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
                         ),
                       ),
                       Text(
-                        times.prayers[_nextPrayerIndex(times)!].time,
+                        formatTime12(times.prayers[_nextPrayerIndex(times)!].time),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -271,7 +272,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
                               ),
                               if (isNext)
                                 Text(
-                                   state.t('Next', 'اگلی'),
+                                   state.t('Now', 'ابھی'),
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 11.5,
@@ -282,7 +283,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
                           ),
                         ),
                         Text(
-                          p.time,
+                          formatTime12(p.time),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -348,6 +349,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
     final now = DateTime.now();
     final currentMinutes = now.hour * 60 + now.minute;
     final todays = times.prayers.where((p) => p.name != 'Sunrise').toList();
+    int? current;
     for (var i = 0; i < todays.length; i++) {
       final parts = todays[i].time.split(':');
       if (parts.length == 2) {
@@ -355,11 +357,14 @@ class _PrayerScreenState extends State<PrayerScreen> {
         final m = int.tryParse(parts[1]);
         if (h != null && m != null) {
           final mins = h * 60 + m;
-          if (mins > currentMinutes) return times.prayers.indexOf(todays[i]);
+          if (mins <= currentMinutes) current = i;
         }
       }
     }
-    return 0; // Fajr tomorrow
+    // Active window: the LAST prayer whose time has arrived stays the
+    // highlighted one until the next prayer begins; before Fajr the whole
+    // night belongs to Isha (same rule as the home card).
+    return times.prayers.indexOf(todays[current ?? todays.length - 1]);
   }
 
   IconData _prayerIcon(String name) {

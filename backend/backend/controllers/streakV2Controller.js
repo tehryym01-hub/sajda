@@ -62,13 +62,22 @@ const prayerOf = (raw) => String(raw || '').trim().toLowerCase();
 
 const rollForwardSolo = async (solo, userId, timezone) => {
   const today = todayKeyInTz(timezone);
-  const rows = await SoloDailyProgress.find({ userId, isDayComplete: true })
-    .select('dateKey').lean();
+  // Bounded read: the CURRENT run cannot start before the recorded start
+  // date, so the walk only needs those rows. bestStreak is monotonic —
+  // max(stored, current run) needs no full-history scan. When no start date
+  // exists yet (first run / post-reset) the query is unbounded exactly once;
+  // the run it produces sets the start date and every later read is bounded.
+  const since = solo?.currentStreakStartDate || null;
+  const rows = await SoloDailyProgress.find({
+    userId,
+    isDayComplete: true,
+    ...(since ? { dateKey: { $gte: since } } : {}),
+  }).select('dateKey').lean();
   const days = new Set(rows.map((r) => r.dateKey));
   const { run, startDate } = currentRunFromDays(days, today);
-  const best = Math.max(longestRunFromDays(days), run);
   let doc = solo;
   if (!doc) doc = await SoloStreak.create({ userId });
+  const best = Math.max(doc.bestStreak || 0, run);
   let changed = false;
   if (doc.currentStreak !== run) { doc.currentStreak = run; changed = true; }
   if (doc.bestStreak !== best) { doc.bestStreak = best; changed = true; }
@@ -82,11 +91,16 @@ const rollForwardSolo = async (solo, userId, timezone) => {
 
 const rollForwardGroup = async (group) => {
   const today = todayKeyInTz(group.timezone);
-  const rows = await GroupDailySummary.find({ groupId: group.groupId, isGroupDayComplete: true })
-    .select('dateKey').lean();
+  // Same bounded read as the solo roll-forward — see the rationale there.
+  const since = group.currentStreakStartDate || null;
+  const rows = await GroupDailySummary.find({
+    groupId: group.groupId,
+    isGroupDayComplete: true,
+    ...(since ? { dateKey: { $gte: since } } : {}),
+  }).select('dateKey').lean();
   const days = new Set(rows.map((r) => r.dateKey));
   const { run, startDate } = currentRunFromDays(days, today);
-  const best = Math.max(longestRunFromDays(days), run);
+  const best = Math.max(group.bestStreak || 0, run);
   let changed = false;
   if (group.currentStreak !== run) { group.currentStreak = run; changed = true; }
   if (group.bestStreak !== best) { group.bestStreak = best; changed = true; }
@@ -118,33 +132,53 @@ const soloPayload = (solo, todayRow) => ({
 // activity, idempotent per (context, user, dateKey, prayer).
 // ─────────────────────────────────────────────────────────────────────────
 
-const flippedTrue = async (Model, filter, prayer) => {
-  const r = await Model.updateOne(
-    { ...filter, [prayer]: { $ne: true } },
-    { $set: { [prayer]: true }, $inc: { completedCount: 1 } },
-  );
-  return r.modifiedCount === 1;
+const PRAYERS_TOTAL = PRAYERS.length;
+
+// ONE roundtrip: flips the prayer flag only when it actually changes,
+// keeps completedCount truthful, creates the row on the first tick of the
+// day (upsert), and returns the row — null when nothing matched (re-tick,
+// or un-tick with no row).
+const flipPrayer = async (Model, filter, prayer, completed, insertExtras = {}) => {
+  const match = { ...filter, [prayer]: completed ? { $ne: true } : true };
+  const update = completed
+    ? {
+        $setOnInsert: { ...filter, ...insertExtras, completedCount: 0 },
+        $set: { [prayer]: true },
+        $inc: { completedCount: 1 },
+      }
+    : { $set: { [prayer]: false }, $inc: { completedCount: -1 } };
+  return Model.findOneAndUpdate(match, update, { upsert: completed, new: true }).lean();
 };
 
-const flippedFalse = async (Model, filter, prayer) => {
-  const r = await Model.updateOne(
-    { ...filter, [prayer]: true },
-    { $set: { [prayer]: false }, $inc: { completedCount: -1 } },
-  );
-  return r.modifiedCount === 1;
+// Day-complete is DERIVED — a day counts as complete only when ALL five
+// prayers are ticked, never from the request's completed flag (a single
+// tick must never complete the day). Pipeline update keeps the derivation
+// atomic with the write.
+const syncDayComplete = async (Model, filter) => {
+  return Model.findOneAndUpdate(
+    filter,
+    [
+      {
+        $set: {
+          isDayComplete: { $gte: [{ $ifNull: ['$completedCount', 0] }, PRAYERS_TOTAL] },
+          completedAt: {
+            $cond: {
+              if: { $lt: [{ $ifNull: ['$completedCount', 0] }, PRAYERS_TOTAL] },
+              then: '$$REMOVE',
+              else: { $ifNull: ['$completedAt', '$$NOW'] },
+            },
+          },
+        },
+      },
+    ],
+    { new: true },
+  ).lean();
 };
 
-const markDayComplete = async (Model, filter, complete) => {
-  await Model.updateOne(
-    { ...filter, isDayComplete: { $ne: !!complete } },
-    {
-      $set: { isDayComplete: !!complete, ...(complete ? { completedAt: new Date() } : {}) },
-      ...(complete ? {} : { $unset: { completedAt: '' } }),
-    },
-  );
-  const row = await Model.findOne(filter).lean();
-  return row;
-};
+// Only the 5th tick (or an un-tick / repair of a complete day) can change
+// day-completion — the rare path pays for the derived write.
+const needsDaySync = (row) =>
+  !!row && ((row.completedCount || 0) >= PRAYERS_TOTAL || row.isDayComplete === true);
 
 // Checks ALL eligible active members and — only when everyone is 5/5 —
 // flips the summary COMPLETE exactly once (atomic conditional update).
@@ -205,80 +239,81 @@ export const completePrayer = async (req, res, next) => {
     }
     const completed = req.body?.completed !== false; // default true
     const soloKey = todayKeyInTz(user.timezone);
-    const groupsTouched = [];
 
-    // ── SOLO ──
+    // ── SOLO (flip + derived day-complete) ──
     let solo = await SoloStreak.findOne({ userId: user.id });
     if (completed && !solo) solo = await SoloStreak.create({ userId: user.id });
     const soloRowFilter = { userId: new mongoose.Types.ObjectId(user.id), dateKey: soloKey };
-    // Ensure today's row exists BEFORE the conditional flip — a plain
-    // updateOne cannot create it, so the first tick of a fresh day would
-    // otherwise be a silent no-op (same pattern as the group fan-out below).
-    if (completed) {
-      await SoloDailyProgress.updateOne(
-        soloRowFilter,
-        { $setOnInsert: { ...soloRowFilter, completedCount: 0 } },
-        { upsert: true },
-      );
+    let soloRow = await flipPrayer(SoloDailyProgress, soloRowFilter, prayer, completed);
+    if (needsDaySync(soloRow)) {
+      soloRow = await syncDayComplete(SoloDailyProgress, soloRowFilter);
     }
-    const flip = completed
-      ? await flippedTrue(SoloDailyProgress, soloRowFilter, prayer)
-      : await flippedFalse(SoloDailyProgress, soloRowFilter, prayer);
-    const soloRow = await markDayComplete(SoloDailyProgress, soloRowFilter, completed);
     solo = await rollForwardSolo(solo, user.id, user.timezone);
 
-    // ── GROUPS (fan-out of the SAME single tick) ──
+    // ── GROUPS — fan-out of the SAME single tick, groups in parallel ──
     const memberships = await GroupMember.find({ userId: user.id, status: 'active' }).lean();
     const groupIds = memberships.map((m) => m.groupId);
     const groups = groupIds.length
       ? await Group.find({ groupId: { $in: groupIds }, status: 'active' })
       : [];
-    for (const group of groups) {
+
+    const tickGroup = async (group) => {
       const gKey = todayKeyInTz(group.timezone);
       const membership = memberships.find((m) => m.groupId === group.groupId);
       const eligible = isMemberEligibleOn(membership, gKey);
       const rowFilter = { groupId: group.groupId, userId: new mongoose.Types.ObjectId(user.id), dateKey: gKey };
+      let dayCompleted = false;
       if (completed) {
-        await GroupDailyProgress.updateOne(
-          rowFilter,
-          { $setOnInsert: { ...rowFilter }, $set: { eligible } },
-          { upsert: true },
-        );
-        await flippedTrue(GroupDailyProgress, rowFilter, prayer);
-        const row = await markDayComplete(GroupDailyProgress, rowFilter, completed);
-        const dayCompleted = eligible
+        const row = await flipPrayer(GroupDailyProgress, rowFilter, prayer, true, { eligible });
+        const freshRow = needsDaySync(row)
+          ? await syncDayComplete(GroupDailyProgress, rowFilter)
+          : row;
+        // Only a member who just finished 5/5 can complete the group day —
+        // no point re-checking every member on each of the first four ticks.
+        dayCompleted = eligible && freshRow?.isDayComplete === true
           ? await maybeCompleteGroupDay(group, gKey, { _id: user.id, displayName: user.displayName })
           : false;
-
-        // ── Real-time FCM (fire-and-forget; the tick NEVER depends on it) ──
-        const members = await GroupMember.find({ groupId: group.groupId, status: 'active' })
-          .select('userId').lean();
-        const others = members.filter((m) => String(m.userId) !== String(user.id));
-        const actorName = user.displayName || 'A member';
-        await pushToUsers(others.map((m) => m.userId), {
-          title: group.name,
-          body: `${actorName} completed ${PRAYER_LABELS[prayer]}`,
-          data: { type: 'prayer_completed', groupId: group.groupId, prayer },
-        });
-        if (dayCompleted) {
-          await pushToUsers(members.map((m) => m.userId), {
-            title: `${group.name} — day complete!`,
-            body: `Everyone completed all five prayers. Streak is now ${group.currentStreak + 1} — Mubarak!`,
-            data: { type: 'group_day_completed', groupId: group.groupId },
-          });
-        }
       } else {
-        await flippedFalse(GroupDailyProgress, rowFilter, prayer);
-        await markDayComplete(GroupDailyProgress, rowFilter, false);
+        const row = await flipPrayer(GroupDailyProgress, rowFilter, prayer, false);
+        if (row?.isDayComplete) await syncDayComplete(GroupDailyProgress, rowFilter);
         if (eligible) await revertGroupDay(group, gKey);
       }
-      groupsTouched.push({
+
+      // ── Real-time FCM (fire-and-forget; the tick NEVER depends on it) ──
+      // NOTE: runs after the tick settles — `group.currentStreak` below is
+      // the value possibly refreshed by rollForwardGroup just above.
+      const actorName = user.displayName || 'A member';
+      (async () => {
+        try {
+          const members = await GroupMember.find({ groupId: group.groupId, status: 'active' })
+            .select('userId').lean();
+          const others = members.filter((m) => String(m.userId) !== String(user.id));
+          await pushToUsers(others.map((m) => m.userId), {
+            title: group.name,
+            body: `${actorName} completed ${PRAYER_LABELS[prayer]}`,
+            data: { type: 'prayer_completed', groupId: group.groupId, prayer },
+          });
+          if (dayCompleted) {
+            await pushToUsers(members.map((m) => m.userId), {
+              title: `${group.name} — day complete!`,
+              body: `Everyone completed all five prayers. Streak is now ${group.currentStreak} — Mubarak!`,
+              data: { type: 'group_day_completed', groupId: group.groupId },
+            });
+          }
+        } catch (e) {
+          console.warn('[streak] push fan-out failed:', e.message);
+        }
+      })();
+
+      return {
         groupId: group.groupId,
         name: group.name,
         dateKey: gKey,
         currentStreak: group.currentStreak,
-      });
-    }
+      };
+    };
+
+    const groupsTouched = await Promise.all(groups.map(tickGroup));
 
     res.json({
       success: true,
@@ -426,23 +461,27 @@ export const getMyGroups = async (req, res, next) => {
       .sort({ createdAt: -1 }).lean();
     if (memberships.length === 0) return res.json({ success: true, data: { groups: [] } });
     const groups = await Group.find({ groupId: { $in: memberships.map((m) => m.groupId) } });
-    const out = [];
-    for (const g of groups) {
+    const membershipByGroup = new Map(memberships.map((m) => [m.groupId, m]));
+    // Per-group reads run concurrently — a serial await per group made this
+    // endpoint O(groups × 6 roundtrips) deep.
+    const out = await Promise.all(groups.map(async (g) => {
       const fresh = await rollForwardGroup(g);
       const gKey = todayKeyInTz(g.timezone);
-      const myRow = await GroupDailyProgress.findOne({
-        groupId: g.groupId, userId: new mongoose.Types.ObjectId(user.id), dateKey: gKey,
-      }).lean();
-      const membership = memberships.find((m) => m.groupId === g.groupId);
+      const membership = membershipByGroup.get(g.groupId);
       const eligible = isMemberEligibleOn(membership, gKey);
-      const requiredToday = await GroupMember.countDocuments({
-        groupId: g.groupId, status: 'active', effectiveFromDate: { $lte: gKey },
-      });
-      const doneToday = await GroupDailyProgress.countDocuments({
-        groupId: g.groupId, dateKey: gKey, eligible: true, isDayComplete: true,
-      });
-      const summaryToday = await GroupDailySummary.findOne({ groupId: g.groupId, dateKey: gKey }).select('isGroupDayComplete').lean();
-      out.push({
+      const [myRow, requiredToday, doneToday, summaryToday] = await Promise.all([
+        GroupDailyProgress.findOne({
+          groupId: g.groupId, userId: new mongoose.Types.ObjectId(user.id), dateKey: gKey,
+        }).lean(),
+        GroupMember.countDocuments({
+          groupId: g.groupId, status: 'active', effectiveFromDate: { $lte: gKey },
+        }),
+        GroupDailyProgress.countDocuments({
+          groupId: g.groupId, dateKey: gKey, eligible: true, isDayComplete: true,
+        }),
+        GroupDailySummary.findOne({ groupId: g.groupId, dateKey: gKey }).select('isGroupDayComplete').lean(),
+      ]);
+      return {
         groupId: g.groupId,
         name: g.name,
         status: g.status,
@@ -460,8 +499,8 @@ export const getMyGroups = async (req, res, next) => {
         },
         today: { required: requiredToday, completed: doneToday, isGroupDayComplete: !!summaryToday?.isGroupDayComplete },
         isOwner: String(g.ownerId) === user.id,
-      });
-    }
+      };
+    }));
     res.json({ success: true, data: { groups: out } });
   } catch (error) {
     next(error);
@@ -776,6 +815,22 @@ export const joinByInviteCode = async (req, res, next) => {
       { groupId: group.groupId, userId: new mongoose.Types.ObjectId(user.id), status: 'pending' },
       { $set: { status: 'cancelled' } },
     );
+    // Fire-and-forget: let owner/admins welcome the new member.
+    (async () => {
+      try {
+        const admins = await GroupMember.find({
+          groupId: group.groupId, role: { $in: ['owner', 'admin'] }, status: 'active',
+        }).select('userId').lean();
+        const others = admins.filter((a) => String(a.userId) !== String(user.id));
+        await pushToUsers(others.map((a) => a.userId), {
+          title: group.name,
+          body: `${user.displayName || 'Someone'} joined via invite code`,
+          data: { type: 'member_joined', groupId: group.groupId },
+        });
+      } catch (e) {
+        console.warn('[streak] member-joined push failed:', e.message);
+      }
+    })();
     res.json({
       success: true,
       data: { alreadyMember: false, groupId: group.groupId, name: group.name, message: 'Joined! Your prayers count from today — you join the group day requirement from tomorrow.' },
@@ -863,6 +918,21 @@ export const requestToJoin = async (req, res, next) => {
       request.displayName = user.displayName;
       await request.save();
     }
+    // Fire-and-forget: owner/admins need to know so they can approve/decline.
+    (async () => {
+      try {
+        const admins = await GroupMember.find({
+          groupId, role: { $in: ['owner', 'admin'] }, status: 'active',
+        }).select('userId').lean();
+        await pushToUsers(admins.map((a) => a.userId), {
+          title: group.name,
+          body: `${user.displayName || 'Someone'} wants to join the group`,
+          data: { type: 'join_request', groupId },
+        });
+      } catch (e) {
+        console.warn('[streak] join-request push failed:', e.message);
+      }
+    })();
     res.status(201).json({ success: true, data: { state: 'pending', requestId: request._id } });
   } catch (error) {
     next(error);
@@ -939,6 +1009,20 @@ const decideRequest = async (req, res, approve) => {
   request.status = approve ? 'approved' : 'declined';
   request.decidedAt = new Date();
   await request.save();
+  // Fire-and-forget: the requester is waiting on this decision.
+  (async () => {
+    try {
+      await pushToUsers([request.userId], {
+        title: group.name,
+        body: approve
+          ? 'Your join request was approved — welcome!'
+          : 'Your join request was declined',
+        data: { type: 'join_decided', groupId: group.groupId, approved: approve },
+      });
+    } catch (e) {
+      console.warn('[streak] join-decided push failed:', e.message);
+    }
+  })();
   res.json({ success: true, data: { status: request.status } });
 };
 
