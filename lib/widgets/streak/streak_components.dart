@@ -709,8 +709,10 @@ class _LoadingListState extends State<LoadingList>
     with SingleTickerProviderStateMixin {
   late int _index;
   Timer? _timer;
+  // ONE controller drives every animation (name breathing, glow pulse,
+  // shimmer sweep) — cheap on battery, perfectly in sync.
   late final AnimationController _anim =
-      AnimationController(vsync: this, duration: const Duration(seconds: 7))
+      AnimationController(vsync: this, duration: const Duration(seconds: 4))
         ..repeat();
 
   @override
@@ -737,122 +739,207 @@ class _LoadingListState extends State<LoadingList>
     final app = context.watch<AppState>();
     final n = allahNames[_index];
     final meaning = app.isUrdu ? n.ur : n.en;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: AnimatedBuilder(
-          animation: _anim,
-          builder: (context, _) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 30),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                transform: GradientRotation(_anim.value * 2 * math.pi),
-                colors: const [
-                  Color(0xFF0E9F8A), // emerald
-                  Color(0xFF6C5CE7), // violet
-                  Color(0xFF2DA8F5), // sky
-                  Color(0xFFEF9F5A), // amber
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6C5CE7).withValues(alpha: 0.35),
-                  blurRadius: 42,
-                  offset: const Offset(0, 14),
-                  spreadRadius: 1,
+
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final t = _anim.value;
+        final wave = 0.5 + 0.5 * math.sin(t * 2 * math.pi); // 0..1..0
+        final breath = 1 + 0.025 * math.sin(t * 2 * math.pi);
+        return Container(
+      // Full-bleed night sky — the loader IS the screen while data loads.
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF07231E), // deep emerald night
+            Color(0xFF0F1A3C), // indigo
+            Color(0xFF07080F), // near black
+          ],
+          stops: [0.0, 0.55, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Sparse star specks — drawn once, never repaint.
+          const Positioned.fill(
+            child: CustomPaint(painter: _StarField(seed: 7)),
+          ),
+          // Golden halo behind the name, softly breathing.
+          Center(
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Color(0xFFE2B857).withValues(alpha: 0.16 + 0.10 * wave),
+                    Color(0xFFE2B857).withValues(alpha: 0.0),
+                  ],
                 ),
-              ],
-            ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 450),
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
-                  child: child,
-                ),
-              ),
-              child: Column(
-                key: ValueKey(_index),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    n.ar,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      n.tr,
-                      style: const TextStyle(
-                        color: Color(0xFFFFE9B8),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    meaning,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < 3; i++)
-                        Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(
-                              alpha: (0.25 +
-                                      0.75 *
-                                          (0.5 +
-                                              0.5 *
-                                                  math.sin(
-                                                    _anim.value * 2 * math.pi -
-                                                        i * 1.05,
-                                                  )))
-                                  .clamp(0.0, 1.0),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
               ),
             ),
           ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 36),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 450),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.96, end: 1).animate(anim),
+                        child: child,
+                      ),
+                    ),
+                    child: Transform.scale(
+                      key: ValueKey(_index),
+                      scale: breath,
+                      child: Column(
+                        key: ValueKey('n$_index'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (b) => const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xFFF9E9C0), // light gold
+                                Color(0xFFE2B857), // gold
+                                Color(0xFFB98A2F), // deep gold
+                              ],
+                            ).createShader(b),
+                            child: Text(
+                              n.ar,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 44,
+                                height: 1.45,
+                                fontWeight: FontWeight.w700,
+                                shadows: [
+                                  Shadow(
+                                    color: const Color(0xFFE2B857)
+                                        .withValues(alpha: 0.35),
+                                    blurRadius: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2B857)
+                                  .withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: const Color(0xFFE2B857)
+                                    .withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Text(
+                              n.tr,
+                              style: const TextStyle(
+                                color: Color(0xFFF3DFA8),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            meaning,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.75),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 34),
+                  // Slim shimmer bar — sweeps gently while the data loads.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: Container(
+                      height: 4,
+                      width: 210,
+                      color: Colors.white.withValues(alpha: 0.10),
+                      child: Align(
+                        alignment: Alignment((-1 + 2 * wave).toDouble(), 0),
+                        child: Container(
+                          width: 84,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(99),
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFFE2B857).withValues(alpha: 0.0),
+                                const Color(0xFFF3DFA8),
+                                const Color(0xFFE2B857).withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    app.t('Loading…', 'لوڈ ہو رہا ہے…'),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 11,
+                      letterSpacing: 2.2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                   ),
+                 ],
+               ),
+             ),
+           ),
+          ],
         ),
-      ),
+        );
+      },
     );
   }
+}
+
+/// Faint star specks on the night background — positions are seeded so
+/// they are stable across rebuilds, and the painter never repaints.
+class _StarField extends CustomPainter {
+  final int seed;
+  const _StarField({required this.seed});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rng = math.Random(seed);
+    final paint = Paint() ..color = Colors.white;
+    for (var i = 0; i < 46; i++) {
+      final x = rng.nextDouble() * size.width;
+      final y = rng.nextDouble() * size.height;
+      final r = 0.5 + rng.nextDouble() * 1.3;
+      paint.color = Colors.white.withValues(alpha: 0.06 + rng.nextDouble() * 0.22);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StarField oldDelegate) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────

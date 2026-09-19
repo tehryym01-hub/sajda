@@ -1,6 +1,13 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import DeletionRequest from '../models/DeletionRequest.js';
+import Group from '../models/Group.js';
+import GroupMember from '../models/GroupMember.js';
+import GroupDailyProgress from '../models/GroupDailyProgress.js';
+import JoinRequest from '../models/JoinRequest.js';
+import PushToken from '../models/PushToken.js';
+import SoloStreak from '../models/SoloStreak.js';
+import SoloDailyProgress from '../models/SoloDailyProgress.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getJwtSecret } from '../middleware/auth.js';
 import { verifyFirebaseIdToken, FirebaseTokenError } from '../services/firebaseAuth.js';
@@ -201,6 +208,50 @@ export const deleteAccount = async (req, res, next) => {
       StreakMember.deleteMany({ userId }),
       PrayerCompletion.deleteMany({ userId }),
     ]);
+
+    // ── v2 streak system — deletion must not leave GHOSTS behind ──
+    // A deleted user used to survive as a GroupMember row (inflating
+    // memberCount and blocking group days) and, worse, as the OWNER of
+    // groups nobody could manage any more.
+    const ownedMemberships = await GroupMember.find({ userId, status: 'active' }).lean();
+    for (const m of ownedMemberships) {
+      if (m.role !== 'owner') continue;
+      const group = await Group.findOne({ groupId: m.groupId, status: 'active' });
+      if (!group) continue;
+      const others = (await GroupMember.find({ groupId: m.groupId, status: 'active', userId: { $ne: userId } })
+        .sort({ createdAt: 1 }).lean());
+      // Heir preference: an admin, else the oldest remaining member.
+      const heir = others.find((o) => o.role === 'admin') || others[0] || null;
+      if (heir) {
+        await Group.updateOne({ groupId: m.groupId }, { $set: { ownerId: heir.userId } });
+        await GroupMember.updateOne({ _id: heir._id }, { $set: { role: 'owner' } });
+      } else {
+        // Nobody left — archive so it disappears from discover/search.
+        await Group.updateOne(
+          { groupId: m.groupId },
+          { $set: { status: 'archived', archivedAt: new Date(), memberCount: 0 } },
+        );
+      }
+    }
+    await Promise.all([
+      GroupMember.deleteMany({ userId }),
+      JoinRequest.deleteMany({ userId }),
+      PushToken.deleteMany({ userId }),
+      SoloStreak.deleteMany({ userId }),
+      SoloDailyProgress.deleteMany({ userId }),
+      GroupDailyProgress.deleteMany({ userId }),
+    ]);
+    // memberCount recompute for every active group he was in.
+    const touched = [...new Set(ownedMemberships.map((m) => m.groupId))];
+    for (const groupId of touched) {
+      const g = await Group.findOne({ groupId, status: 'active' });
+      if (!g) continue;
+      const real = await GroupMember.countDocuments({ groupId, status: 'active' });
+      if (real !== g.memberCount) {
+        g.memberCount = real;
+        await g.save();
+      }
+    }
 
     res.json({ success: true, message: 'Account and all associated data deleted successfully' });
   } catch (error) {
