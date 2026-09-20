@@ -24,6 +24,7 @@ import streakV2Routes from './routes/streakV2Routes.js';
 import quranRoutes from './routes/quranRoutes.js';
 import ayatRoutes from './routes/ayatRoutes.js';
 import adhkarRoutes from './routes/adhkarRoutes.js';
+import { autoSeedContent } from './services/autoSeed.js';
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -130,6 +131,9 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 connectDB().then(() => {
+  // Fire-and-forget: fills adhkar/ayat content on an empty database
+  // without ever blocking startup.
+  autoSeedContent();
   app.listen(PORT, () => {
     console.log(`Sajda server running on port ${PORT}`);
   });
