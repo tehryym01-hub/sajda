@@ -794,40 +794,46 @@ class _ToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard(isDark),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: value
-              ? AppColors.accent(isDark).withValues(alpha: 0.55)
-              : Colors.grey.withValues(alpha: 0.22),
+    // Whole card is tappable — the 26px switch alone was an easy-to-miss
+    // target, which felt like the toggle "sometimes not working".
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard(isDark),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: value
+                ? AppColors.accent(isDark).withValues(alpha: 0.55)
+                : Colors.grey.withValues(alpha: 0.22),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: value ? AppColors.accent(isDark) : AppColors.textMuted),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: value ? AppColors.accent(isDark) : AppColors.textMuted),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
-          SizedBox(
-            height: 26,
-            child: Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: AppColors.accent(isDark),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            SizedBox(
+              height: 26,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: AppColors.accent(isDark),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

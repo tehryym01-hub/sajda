@@ -15,36 +15,51 @@ class SettingsScreen extends StatelessWidget {
 
   static const _prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
+  /// Re-entry guard for the prayer-alerts toggle (screen is stateless).
+  static bool _togglingNotifications = false;
+
   Future<void> _toggleNotifications(BuildContext context, bool value) async {
+    // Re-entry guard: rapid taps used to stack permission dialogs and race
+    // schedule/cancel against each other.
+    if (_togglingNotifications) return;
     final state = context.read<AppState>();
-    if (value) {
-      final granted = await PrayerNotificationService.instance.requestPermissions();
-      if (!context.mounted) return;
-      if (!granted) {
-        showAppSnack(
-          context,
-          state.t('Notifications permission needed to enable prayer alerts', 'نماز کے الرٹس کے لیے نوٹیفکیشن کی اجازت درکار ہے'),
-          error: true,
-        );
-        return;
-      }
-      await state.setNotificationsEnabled(true);
-      try {
-        final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
-        await PrayerNotificationService.instance
-            .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes, city: state.displayCityName);
-      } catch (e) {
+    _togglingNotifications = true;
+    try {
+      if (value) {
+        final granted = await PrayerNotificationService.instance
+            .requestNotificationPermission();
         if (!context.mounted) return;
-        showAppSnack(context, state.t('Could not schedule alerts: ${e.toString()}', 'الرٹس شیڈول نہیں ہوئے: ${e.toString()}'), error: true);
+        if (!granted) {
+          // Permission permanently denied on Android 13+ — no dialog appears,
+          // which used to look like a dead toggle. Point the user at settings.
+          showAppSnack(
+            context,
+            state.t('Notification permission is off — enable it in system settings for prayer alerts',
+                'نوٹیفکیشن کی اجازت بند ہے — نماز کے الرٹس کے لیے system settings میں فعال کریں'),
+            error: true,
+          );
+          return;
+        }
+        await state.setNotificationsEnabled(true);
+        try {
+          final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
+          await PrayerNotificationService.instance
+              .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes, city: state.displayCityName);
+        } catch (e) {
+          if (!context.mounted) return;
+          showAppSnack(context, state.t('Could not schedule alerts: ${e.toString()}', 'الرٹس شیڈول نہیں ہوئے: ${e.toString()}'), error: true);
+        }
+      } else {
+        await state.setNotificationsEnabled(false);
+        await PrayerNotificationService.instance.cancelAll();
       }
-    } else {
-      await state.setNotificationsEnabled(false);
-      await PrayerNotificationService.instance.cancelAll();
+      if (!context.mounted) return;
+      showAppSnack(context, value
+          ? state.t('Azan alerts enabled for all prayers', 'تمام نمازوں کے لیے اذان کے الرٹس فعال کر دیے گئے')
+          : state.t('Prayer alerts disabled', 'نماز کے الرٹس بند کر دیے گئے'));
+    } finally {
+      _togglingNotifications = false;
     }
-    if (!context.mounted) return;
-    showAppSnack(context, value
-        ? state.t('Azan alerts enabled for all prayers', 'تمام نمازوں کے لیے اذان کے الرٹس فعال کر دیے گئے')
-        : state.t('Prayer alerts disabled', 'نماز کے الرٹس بند کر دیے گئے'));
   }
 
   Future<void> _setPrayerMode(BuildContext context, String prayer, String mode) async {
