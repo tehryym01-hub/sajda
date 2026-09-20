@@ -39,16 +39,16 @@ class AppColors {
   static const gradientSunset = [Color(0xFFFFB3BA), Color(0xFFFFD9BA)];
   static const gradientOcean = [Color(0xFFBAE1FF), Color(0xFFE0F7F3)];
 
-  // ── Light Mode ───────────────────────────────────────────
-  static const lightBackground = Color(0xFFF5F7FA);
-  static const lightCard = Color(0xFFFFFFFF);
+  // ── Light Mode (warm cream — easy on the eyes) ──────────
+  static const lightBackground = Color(0xFFFAF5EA);
+  static const lightCard = Color(0xFFFFFCF3);
   static const lightText = Color(0xFF1E293B);
   static const lightSecondaryText = Color(0xFF64748B);
   static const lightMutedText = Color(0xFF94A3B8);
-  static const lightBorder = Color(0xFFE5E9F0);
-  static const lightDivider = Color(0xFFF1F4F8);
-  static const lightFieldFill = Color(0xFFF0F3F7);
-  static const lightChip = Color(0xFFEDF1F6);
+  static const lightBorder = Color(0xFFEAE2CF);
+  static const lightDivider = Color(0xFFF2ECDC);
+  static const lightFieldFill = Color(0xFFF4EEDF);
+  static const lightChip = Color(0xFFF1EAD8);
   static const lightCardShadow = Color(0x121E293B);
 
   // ── Dark Mode ────────────────────────────────────────────
@@ -59,8 +59,8 @@ class AppColors {
   static const darkMuted = Color(0xFF9AABA4);
 
   // ── Neutral ──────────────────────────────────────────────
-  static const background = Color(0xFFF5F7FA);
-  static const surface = Colors.white;
+  static const background = Color(0xFFFAF5EA);
+  static const surface = Color(0xFFFFFCF3);
   static const textDark = Color(0xFF1E293B);
   static const textMuted = Color(0xFF64748B);
   static const danger = Color(0xFFEF4444);
@@ -279,7 +279,7 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor:
-            isDark ? AppColors.darkSurface : Colors.white,
+            isDark ? AppColors.darkSurface : AppColors.lightCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
         ),
@@ -296,7 +296,7 @@ class AppTheme {
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor:
-            isDark ? AppColors.darkSurface : Colors.white,
+            isDark ? AppColors.darkSurface : AppColors.lightCard,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
@@ -704,7 +704,7 @@ class FilterPill extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected
                 ? AppColors.accent(isDark)
-                : (isDark ? AppColors.darkSurfaceAlt : Colors.white),
+                : (isDark ? AppColors.darkSurfaceAlt : AppColors.lightCard),
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
               color: selected

@@ -736,7 +736,7 @@ class _PresetChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = color ?? (dark ? AppColors.darkSurface : Colors.white);
+    final bgColor = color ?? (dark ? AppColors.darkSurface : AppColors.lightCard);
     final bdColor = selected
         ? (color ?? AppColors.primary)
         : (borderColor ?? Colors.grey.withValues(alpha: 0.3));

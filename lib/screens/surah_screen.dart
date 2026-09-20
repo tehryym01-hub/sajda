@@ -348,7 +348,7 @@ class _SurahScreenState extends State<SurahScreen> {
                 backgroundColor: WidgetStateProperty.resolveWith(
                   (states) => states.contains(WidgetState.selected)
                       ? AppColors.primary
-                      : const Color(0xFFEAF3EC),
+                      : AppColors.lightChip,
                 ),
                 foregroundColor: WidgetStateProperty.resolveWith(
                   (states) => states.contains(WidgetState.selected)

@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         expand: false,
         builder: (sheetCtx, scrollController) => Container(
           decoration: BoxDecoration(
-            color: dark ? AppColors.darkSurface : Colors.white,
+            color: dark ? AppColors.darkSurface : AppColors.lightCard,
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(32)),
           ),
@@ -309,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primary,
-        backgroundColor: dark ? AppColors.darkSurface : Colors.white,
+        backgroundColor: dark ? AppColors.darkSurface : AppColors.lightCard,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -772,7 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       vertical: 14,
                     ),
                     decoration: BoxDecoration(
-                      color: dark ? AppColors.darkSurface : Colors.white,
+                      color: dark ? AppColors.darkSurface : AppColors.lightCard,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: dark
