@@ -208,3 +208,41 @@ export async function fetchVerseTafsir(surahNumber, ayahNumber) {
     source: surahData.source,
   };
 }
+
+/// Legacy flat shape used by the dua/wazifa controllers:
+/// [{ arabic, english, urdu, reference, source }]
+/// Arabic text is the Uthmani script served publicly by quran.com;
+/// English/Urdu come from the same public-domain chain as above.
+export async function fetchVersesBySurah(surahNumber) {
+  const surah = Number(surahNumber);
+  const cacheKey = `fvs:${surah}`;
+
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
+  const [arabic, en, ur] = await Promise.all([
+    fetchJson(`${QURAN_COM}/quran/verses/uthmani?chapter_number=${surah}`),
+    fetchSurahTranslations(surah, 'en'),
+    fetchSurahTranslations(surah, 'ur'),
+  ]);
+
+  const rows = Array.isArray(arabic.verses) ? arabic.verses : [];
+  if (rows.length === 0) throw new Error('empty verses payload');
+
+  const enByNumber = new Map(en.verses.map((v) => [v.verse_number, v]));
+  const urByNumber = new Map(ur.verses.map((v) => [v.verse_number, v]));
+
+  const data = rows.map((v, i) => {
+    const n = v.verse_key ? Number(String(v.verse_key).split(':')[1]) : i + 1;
+    return {
+      arabic: stripHtml(v.text_uthmani),
+      english: enByNumber.get(n)?.translations?.[0]?.text || '',
+      urdu: urByNumber.get(n)?.translations?.[0]?.text || '',
+      reference: `Quran ${surah}:${n}`,
+      source: `quran.com — ${en.translation_name} / ${ur.translation_name} (public domain)`,
+    };
+  });
+
+  cacheSet(cacheKey, data);
+  return data;
+}
