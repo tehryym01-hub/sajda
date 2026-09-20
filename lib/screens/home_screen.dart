@@ -76,6 +76,22 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final times = await ApiClient.instance.getPrayerTimesFor(state);
       if (!mounted) return;
+      if (quiet) {
+        // Cheap tick: prayer times are served from the client cache, the
+        // event/ayah fetches are skipped, and we only rebuild when the
+        // countdown minute or the hero prayer actually changed.
+        final next = _computeClock(times);
+        if (next == null) return;
+        final heroChanged = next.current?.name != _clock?.current?.name ||
+            next.next.name != _clock?.next.name ||
+            next.nextIsTomorrow != _clock?.nextIsTomorrow;
+        final minuteChanged =
+            next.endsInSec ~/ 60 != (_clock?.endsInSec ?? 0) ~/ 60;
+        if (heroChanged || minuteChanged) {
+          setState(() => _clock = next);
+        }
+        return;
+      }
       List<IslamicEvent> events = const [];
       try {
         events = await ApiClient.instance.getTodayEvents();
@@ -121,13 +137,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (seconds <= 0) return '--';
     final h = seconds ~/ 3600;
     final m = ((seconds % 3600) ~/ 60);
+    // Long windows show hours only so the countdown never ellipsizes in
+    // the hero row next to the upcoming-prayer chip.
     if (h > 0) {
-      final hStr = state.t('h', 'گھنٹے');
-      final mStr = state.t('m', 'منٹ');
-      return '$h $hStr $m $mStr';
+      return state.isUrdu ? '$h ${state.t('h', 'گھنٹے')}' : '$h${state.t('h', '')}h';
     }
-    final mStr = state.t('m', 'منٹ');
-    return '$m $mStr';
+    final mm = m == 0 ? 1 : m;
+    return state.isUrdu ? '$mm ${state.t('m', 'منٹ')}' : '$mm${state.t('m', '')}m';
   }
 
   /// Builds the hero card state from the shared per-prayer window rules:

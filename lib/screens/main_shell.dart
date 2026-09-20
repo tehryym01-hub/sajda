@@ -153,7 +153,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    // Subscribe only to the app language (the shell itself renders just the
+    // tab labels from AppState). A full watch here would rebuild every tab
+    // in the IndexedStack on any state change, which made taps feel
+    // seconds-late on low-end phones.
+    final app = context.read<AppState>();
+    context.select<AppState, String>((s) => s.language);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Home is always dark; other tabs follow the theme.
@@ -225,29 +230,29 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                      indicatorShape: const RoundedRectangleBorder(
                        borderRadius: BorderRadius.all(Radius.circular(18)),
                      ),
-                      destinations: [
-                        _tab(
-                          Icons.home_outlined,
-                          Icons.home_rounded,
-                          state.t('Home', 'ہوم'),
-                        ),
-                        _tab(
-                          Icons.podcasts_outlined,
-                          Icons.podcasts_rounded,
-                          state.t('Radio', 'ریڈیو'),
-                        ),
-                        _streakTab(state.t('Streak', 'سٹریک')),
-                        _tab(
-                          Icons.circle_outlined,
-                          Icons.circle,
-                          state.t('Tasbeeh', 'تسبیح'),
-                        ),
-                        _tab(
-                          Icons.settings_outlined,
-                          Icons.settings_rounded,
-                          state.t('Settings', 'ترتیبات'),
-                        ),
-                      ],
+                       destinations: [
+                         _tab(
+                           Icons.home_outlined,
+                           Icons.home_rounded,
+                           app.t('Home', 'ہوم'),
+                         ),
+                         _tab(
+                           Icons.podcasts_outlined,
+                           Icons.podcasts_rounded,
+                           app.t('Radio', 'ریڈیو'),
+                         ),
+                         _streakTab(app.t('Streak', 'سٹریک')),
+                         _tab(
+                           Icons.circle_outlined,
+                           Icons.circle,
+                           app.t('Tasbeeh', 'تسبیح'),
+                         ),
+                         _tab(
+                           Icons.settings_outlined,
+                           Icons.settings_rounded,
+                           app.t('Settings', 'ترتیبات'),
+                         ),
+                       ],
                   ),
                 ],
               ),
