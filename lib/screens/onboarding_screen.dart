@@ -1,9 +1,45 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../screens/map_location_picker_screen.dart';
 import '../state/app_state.dart';
-import '../theme/app_theme.dart';
+
+// ─────────────────────────────────────────────────────────────
+// Onboarding — "Emerald Night & Gold" design.
+// Deep emerald gradient + subtle Islamic geometric pattern,
+// each page opens with one of Allah's beautiful names in gold,
+// and a slide-to-continue pill button.
+// ─────────────────────────────────────────────────────────────
+
+class _OnboardPage {
+  final IconData icon;
+  final String arabicName;
+  final String transliteration;
+  final String meaning;
+  final String title;
+  final String subtitle;
+  final String cta;
+  final Color accent; // glow / icon tint per page
+
+  const _OnboardPage({
+    required this.icon,
+    required this.arabicName,
+    required this.transliteration,
+    required this.meaning,
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.accent,
+  });
+}
+
+const _kGold = Color(0xFFE3C46B);
+const _kGoldLight = Color(0xFFF7E7A6);
+const _kGoldDeep = Color(0xFFB9963F);
+const _kGoldGradient = [_kGoldLight, _kGold, _kGoldDeep];
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -13,7 +49,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final PageController _page = PageController();
   int _index = 0;
   late final AnimationController _pulse;
@@ -21,49 +57,59 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   static const _pages = [
     _OnboardPage(
-      icon: Icons.mosque_outlined,
+      icon: Icons.auto_awesome_rounded,
+      arabicName: 'الرَّحْمَنُ الرَّحِيمُ',
+      transliteration: 'Ar-Rahman · Ar-Raheem',
+      meaning: 'The Most Compassionate, The Most Merciful',
       title: 'Assalamu Alaikum',
-      subtitle: 'Welcome to Sajda\nYour daily companion for prayer & Quran',
-      cta: 'Get Started',
-      gradientColors: [Color(0xFF00BFA5), Color(0xFF00897B)],
-      bgColor: Color(0xFFF0FFFE),
-      iconBg: Color(0xFFE0F7F3),
+      subtitle:
+          'Welcome to Sajda — your daily companion\nfor prayer, Quran & Qibla',
+      cta: 'Begin',
+      accent: Color(0xFF2EE6C8),
     ),
     _OnboardPage(
-      icon: Icons.access_time_rounded,
+      icon: Icons.notifications_active_rounded,
+      arabicName: 'السَّمِيعُ',
+      transliteration: 'As-Samee\'',
+      meaning: 'The All-Hearing — He hears every call',
       title: 'Never Miss a Prayer',
-      subtitle: 'Accurate prayer times for your location\nwith beautiful Adhan notifications',
-      cta: 'Next',
-      gradientColors: [Color(0xFFBAE1FF), Color(0xFF89CFF0)],
-      bgColor: Color(0xFFF0F8FF),
-      iconBg: Color(0xFFE0F0FF),
+      subtitle:
+          'Accurate prayer times for your location\nwith beautiful Adhan notifications',
+      cta: 'Continue',
+      accent: Color(0xFF4FC3F7),
     ),
     _OnboardPage(
-      icon: Icons.menu_book_outlined,
-      title: 'Read & Memorize Quran',
-      subtitle: 'Explore all 114 Surahs with translations\nTrack your reading progress',
-      cta: 'Next',
-      gradientColors: [Color(0xFFBAFFC9), Color(0xFF7DD3A0)],
-      bgColor: Color(0xFFF0FFF4),
-      iconBg: Color(0xFFE0FFE8),
+      icon: Icons.menu_book_rounded,
+      arabicName: 'الْهَادِي',
+      transliteration: 'Al-Haadi',
+      meaning: 'The Guide — light for every heart',
+      title: 'Read & Understand Quran',
+      subtitle:
+          'Explore all 114 Surahs with translations & tafsir\nTrack your reading progress',
+      cta: 'Continue',
+      accent: Color(0xFF7DE2A8),
     ),
     _OnboardPage(
-      icon: Icons.local_fire_department_outlined,
+      icon: Icons.local_fire_department_rounded,
+      arabicName: 'الشَّكُورُ',
+      transliteration: 'Ash-Shakoor',
+      meaning: 'The Most Appreciative of every deed',
       title: 'Build Your Streak',
-      subtitle: 'Stay consistent with daily prayers\nCompete with friends in shared streaks',
-      cta: 'Next',
-      gradientColors: [Color(0xFFFFB3BA), Color(0xFFFF8A95)],
-      bgColor: Color(0xFFFFF0F2),
-      iconBg: Color(0xFFFFE0E5),
+      subtitle:
+          'Stay consistent with daily prayers\nand grow together with friends & family',
+      cta: 'Continue',
+      accent: Color(0xFFFFC96B),
     ),
     _OnboardPage(
-      icon: Icons.explore_outlined,
+      icon: Icons.explore_rounded,
+      arabicName: 'النُّورُ',
+      transliteration: 'An-Noor',
+      meaning: 'The Light — wherever you are',
       title: 'Find Your Qibla',
-      subtitle: 'Precise Qibla direction with compass\nNever miss the direction again',
-      cta: "Bismillah, Let's Begin",
-      gradientColors: [Color(0xFFE8BAFF), Color(0xFFC77DFF)],
-      bgColor: Color(0xFFF8F0FF),
-      iconBg: Color(0xFFF0E0FF),
+      subtitle:
+          'Precise Qibla compass that works everywhere\nSet your location and pray with confidence',
+      cta: 'Bismillah',
+      accent: Color(0xFFE3C46B),
     ),
   ];
 
@@ -76,7 +122,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.92, end: 1.06).animate(
+    _pulseAnim = Tween<double>(begin: 0.9, end: 1.08).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
     );
   }
@@ -89,15 +135,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   void _next() {
+    HapticFeedback.lightImpact();
     if (_index < _pages.length - 1) {
       _page.nextPage(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
       );
-    } else if (_index == _pages.length - 1) {
-      setState(() => _index = _mapPageIndex);
     } else {
-      _finish();
+      setState(() => _index = _mapPageIndex);
     }
   }
 
@@ -116,260 +161,456 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
     final p = _pages[_index];
     return Scaffold(
-      backgroundColor: p.bgColor,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Subtle decorative circles
-          Positioned(
-            top: -80,
-            right: -60,
-            child: _DecorativeCircle(
-              color: p.gradientColors.first.withValues(alpha: 0.08),
-              size: 200,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // ── Deep emerald night gradient ──
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF04140E),
+                    Color(0xFF06291E),
+                    Color(0xFF03150F),
+                  ],
+                  stops: [0, 0.55, 1],
+                ),
+              ),
             ),
-          ),
-          Positioned(
-            bottom: 120,
-            left: -40,
-            child: _DecorativeCircle(
-              color: p.gradientColors.last.withValues(alpha: 0.06),
-              size: 160,
+            // ── Islamic geometric star pattern ──
+            Positioned.fill(
+              child: CustomPaint(painter: _StarPatternPainter()),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                // Skip button
-                Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8, right: 8),
-                    child: TextButton(
-                      onPressed: _finish,
-                      child: Text(
-                        state.t('Skip', 'چھوڑیں'),
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
+            // ── Breathing accent glow orbs ──
+            Positioned(
+              top: -110,
+              right: -80,
+              child: AnimatedBuilder(
+                animation: _pulseAnim,
+                builder: (_, _) => Transform.scale(
+                  scale: _pulseAnim.value,
+                  child: Container(
+                    width: 300,
+                    height: 300,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          p.accent.withValues(alpha: 0.22),
+                          p.accent.withValues(alpha: 0),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                // Page content
-                Expanded(
-                  child: PageView.builder(
-                    controller: _page,
-                    onPageChanged: (i) => setState(() => _index = i),
-                    itemCount: _pages.length,
-                    itemBuilder: (_, i) => _OnboardPageView(
-                      page: _pages[i],
-                      pulse: _pulseAnim,
+              ),
+            ),
+            Positioned(
+              bottom: 60,
+              left: -90,
+              child: AnimatedBuilder(
+                animation: _pulseAnim,
+                builder: (_, _) => Transform.scale(
+                  scale: 2 - _pulseAnim.value,
+                  child: Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          _kGold.withValues(alpha: 0.10),
+                          _kGold.withValues(alpha: 0),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                // Dots + Next button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Row(
-                    children: [
-                      // Dots
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          children: List.generate(
-                            _pages.length,
-                            (i) => AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              width: i == _index ? 28 : 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: i == _index
-                                    ? p.gradientColors.first
-                                    : AppColors.lightBorder,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
+              ),
+            ),
+            // ── Content ──
+            SafeArea(
+              child: Column(
+                children: [
+                  // Skip
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8, right: 12),
+                      child: TextButton(
+                        onPressed: _finish,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white.withValues(alpha: 0.5),
+                        ),
+                        child: Text(
+                          state.t('Skip', 'چھوڑیں'),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      // Next button
-                      GestureDetector(
-                        onTap: _next,
-                        child: AnimatedContainer(
+                    ),
+                  ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _page,
+                      onPageChanged: (i) => setState(() => _index = i),
+                      itemCount: _pages.length,
+                      itemBuilder: (_, i) => _OnboardPageView(
+                        key: ValueKey(i),
+                        page: _pages[i],
+                      ),
+                    ),
+                  ),
+                  // ── Gold dots ──
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 22),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _pages.length,
+                        (i) => AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
-                          width: 56,
-                          height: 56,
+                          curve: Curves.easeOut,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: i == _index ? 30 : 8,
+                          height: 8,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: p.gradientColors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: p.gradientColors.first
-                                    .withValues(alpha: 0.4),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
+                            gradient: i == _index
+                                ? const LinearGradient(colors: _kGoldGradient)
+                                : null,
+                            color: i == _index
+                                ? null
+                                : Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: i == _index
+                                ? [
+                                    BoxShadow(
+                                      color: _kGold.withValues(alpha: 0.45),
+                                      blurRadius: 10,
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          child: const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // CTA Button
-                SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: ElevatedButton(
-                      onPressed: _next,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: p.gradientColors.first,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 17),
-                        elevation: 0,
-                        shadowColor: p.gradientColors.first.withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: Text(
-                        p.cta,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  // ── Slide-to-continue pill ──
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: _SlideButton(
+                      label: p.cta,
+                      onSlideComplete: _next,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-// ── Page Data ──────────────────────────────────────────────
-class _OnboardPage {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String cta;
-  final List<Color> gradientColors;
-  final Color bgColor;
-  final Color iconBg;
-
-  const _OnboardPage({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.cta,
-    required this.gradientColors,
-    required this.bgColor,
-    required this.iconBg,
-  });
 }
 
 // ── Page View ──────────────────────────────────────────────
 class _OnboardPageView extends StatelessWidget {
   final _OnboardPage page;
-  final Animation<double> pulse;
-  const _OnboardPageView({required this.page, required this.pulse});
+  const _OnboardPageView({super.key, required this.page});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Icon with pulse animation
-          ScaleTransition(
-            scale: pulse,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: page.iconBg,
-                boxShadow: [
-                  BoxShadow(
-                    color: page.gradientColors.first.withValues(alpha: 0.2),
-                    blurRadius: 40,
-                    offset: const Offset(0, 12),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 550),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, _) {
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 34 * (1 - t)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 34),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Feature icon in a glassy glowing circle
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: page.accent.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: page.accent.withValues(alpha: 0.45),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: page.accent.withValues(alpha: 0.35),
+                          blurRadius: 30,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Icon(page.icon, color: page.accent, size: 32),
+                  ),
+                  const SizedBox(height: 34),
+                  // ── Allah's beautiful name in gold ──
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: _kGoldGradient,
+                      ).createShader(bounds),
+                      child: Text(
+                        page.arabicName,
+                        textAlign: TextAlign.center,
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(
+                          fontFamily: 'serif',
+                          fontSize: 46,
+                          height: 1.5,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    page.transliteration,
+                    style: TextStyle(
+                      color: _kGold.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    page.meaning,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 12.5,
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 36),
+                  // Title
+                  Text(
+                    page.title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      height: 1.3,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Subtitle
+                  Text(
+                    page.subtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      height: 1.7,
+                    ),
                   ),
                 ],
               ),
-              child: Icon(
-                page.icon,
-                size: 64,
-                color: page.gradientColors.first,
-              ),
             ),
           ),
-          const SizedBox(height: 44),
-          // Title
-          Text(
-            page.title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textDark,
-              height: 1.3,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Subtitle
-          Text(
-            page.subtitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: AppColors.textMuted,
-              height: 1.7,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-// ── Decorative Circle ──────────────────────────────────────
-class _DecorativeCircle extends StatelessWidget {
-  final Color color;
-  final double size;
-  const _DecorativeCircle({required this.color, required this.size});
+// ── Slide-to-continue button ────────────────────────────────
+class _SlideButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onSlideComplete;
+  const _SlideButton({required this.label, required this.onSlideComplete});
+
+  @override
+  State<_SlideButton> createState() => _SlideButtonState();
+}
+
+class _SlideButtonState extends State<_SlideButton> {
+  double _dx = 0;
+  bool _dragging = false;
+
+  static const _thumbSize = 50.0;
+  static const _trackPadding = 5.0;
+
+  void _onUpdate(DragUpdateDetails d, double maxDrag) {
+    setState(() {
+      _dragging = true;
+      _dx = (_dx + d.delta.dx).clamp(0.0, maxDrag);
+    });
+  }
+
+  void _onEnd(double maxDrag) {
+    if (_dx >= maxDrag * 0.78) {
+      HapticFeedback.mediumImpact();
+      setState(() => _dx = maxDrag);
+      widget.onSlideComplete();
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (mounted) setState(() { _dx = 0; _dragging = false; });
+      });
+    } else {
+      setState(() {
+        _dragging = false;
+        _dx = 0;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxDrag =
+            constraints.maxWidth - _thumbSize - _trackPadding * 2 - 4;
+        final progress = maxDrag <= 0 ? 0.0 : (_dx / maxDrag).clamp(0.0, 1.0);
+        return GestureDetector(
+          onHorizontalDragUpdate: (d) => _onUpdate(d, maxDrag),
+          onHorizontalDragEnd: (_) => _onEnd(maxDrag),
+          onTap: widget.onSlideComplete,
+          child: Container(
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: _kGold.withValues(alpha: 0.35 + progress * 0.45),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _kGold.withValues(alpha: 0.15 + progress * 0.25),
+                  blurRadius: 22,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Center label
+                Padding(
+                  padding: const EdgeInsets.only(right: _thumbSize),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: (1 - progress * 1.4).clamp(0.0, 1.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          Icons.keyboard_double_arrow_right_rounded,
+                          color: _kGold.withValues(alpha: 0.9),
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Draggable gold thumb
+                AnimatedPositioned(
+                  duration: Duration(milliseconds: _dragging ? 0 : 380),
+                  curve: Curves.easeOutBack,
+                  left: _trackPadding + 2 + _dx,
+                  top: 4,
+                  child: Container(
+                    width: _thumbSize,
+                    height: _thumbSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: _kGoldGradient,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kGold.withValues(alpha: 0.55),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF0A2E22),
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
+// ── Islamic geometric star pattern ──────────────────────────
+class _StarPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _kGold.withValues(alpha: 0.045)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    const cell = 84.0;
+    const r = 26.0;
+    for (double x = -cell; x < size.width + cell; x += cell) {
+      for (double y = -cell; y < size.height + cell; y += cell) {
+        final center = Offset(x, y);
+        // 8-point star = two overlapping squares (one rotated 45°)
+        for (var rot = 0; rot < 2; rot++) {
+          final path = Path();
+          for (var i = 0; i < 4; i++) {
+            final angle = i * 3.14159265 / 2 + rot * 3.14159265 / 4;
+            final px = center.dx + r * math.cos(angle);
+            final py = center.dy + r * math.sin(angle);
+            if (i == 0) {
+              path.moveTo(px, py);
+            } else {
+              path.lineTo(px, py);
+            }
+          }
+          path.close();
+          canvas.drawPath(path, paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

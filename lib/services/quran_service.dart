@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:quran/quran.dart' as q;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'api_client.dart';
+
 class SurahInfo {
   final int number;
   final String nameAr;
@@ -51,6 +53,7 @@ class QuranService {
 
   static const _kBookmarks = 'sajda_quran_bookmarks';
   static const _kDailyAyah = 'sajda_daily_ayah';
+  static const _kDailyAyahTr = 'sajda_daily_ayah_tr';
 
   /// Deterministic verse-of-the-day: changes at midnight, shared across devices.
   Future<SearchResult?> dailyAyah({bool forceNew = false}) async {
@@ -94,6 +97,42 @@ class QuranService {
     );
   }
 
+  /// Multi-language translations (ar/ur/en/hi/id) for the daily ayah, served
+  /// by the backend from the seeded `ayat_translations` collection. Cached
+  /// in prefs for the whole day; null on any failure (Arabic-only fallback).
+  Future<Map<String, String>?> dailyAyahTranslations(int surah, int ayah) async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final dayKey = '${now.year}-${now.month}-${now.day}';
+    final saved = prefs.getString(_kDailyAyahTr);
+    if (saved != null && saved.startsWith('$dayKey|')) {
+      final rest = saved.substring(dayKey.length + 1);
+      final p1 = rest.indexOf('|');
+      final p2 = rest.indexOf('|', p1 + 1);
+      if (p1 > 0 && p2 > p1 && rest.substring(0, p1) == '$surah' && rest.substring(p1 + 1, p2) == '$ayah') {
+        try {
+          final decoded = jsonDecode(rest.substring(p2 + 1)) as Map<String, dynamic>;
+          return decoded.map((k, v) => MapEntry(k, v?.toString() ?? ''));
+        } catch (_) {
+          // Corrupt cache → refetch below.
+        }
+      }
+    }
+    try {
+      final data = await ApiClient.instance.getAyatTranslations(surah, ayah);
+      final tr = data?['translations'];
+      if (tr is! Map || tr.isEmpty) return null;
+      final map = tr.map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+      await prefs.setString(
+        _kDailyAyahTr,
+        '$dayKey|$surah|$ayah|${jsonEncode(map)}',
+      );
+      return map;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static const List<ReciterChoice> reciters = [
     ReciterChoice('ar.alafasy', 'Mishary Alafasy'),
     ReciterChoice('ar.husary', 'Mahmoud Al-Husary'),
@@ -123,13 +162,44 @@ class QuranService {
 
   String verseArabic(int surah, int ayah) => q.getVerse(surah, ayah);
 
-  String verseTranslation(int surah, int ayah, {bool urdu = false}) => '';
+  /// Verse translations fetched from the backend (public-domain sources:
+  /// Yusuf Ali/Pickthall for English, Jalandhari/Junagarhi for Urdu).
+  /// Cached in memory for the session.
+  final Map<String, String> _trCache = {};
 
-  String surahAudioUrl(int surah, String reciterCode) =>
-      '';
+  Future<String> verseTranslationAsync(
+    int surah,
+    int ayah, {
+    bool urdu = false,
+  }) async {
+    final lang = urdu ? 'ur' : 'en';
+    final key = '$surah:$ayah:$lang';
+    final cached = _trCache[key];
+    if (cached != null) return cached;
+    try {
+      final res = await ApiClient.instance
+          .get('/quran/verses/$surah/$ayah/translations?lang=$lang');
+      final data = res['data'];
+      if (data is Map && data['verse'] is Map) {
+        final verse = data['verse'] as Map<String, dynamic>;
+        final tr = verse['translations'];
+        if (tr is List && tr.isNotEmpty) {
+          final text = tr.first['text']?.toString() ?? '';
+          if (text.isNotEmpty) {
+            _trCache[key] = text;
+            return text;
+          }
+        }
+      }
+    } catch (_) {
+      // Network/API failure → fall through to empty string.
+    }
+    return '';
+  }
 
-  String verseAudioUrl(int surah, int ayah, String reciterCode) =>
-      '';
+  /// Synchronous, cache-only accessor (returns '' until fetched once).
+  String verseTranslation(int surah, int ayah, {bool urdu = false}) =>
+      _trCache['$surah:$ayah:${urdu ? 'ur' : 'en'}'] ?? '';
 
   List<SearchResult> search(String query, {bool urdu = false}) {
     final qry = query.trim().toLowerCase();

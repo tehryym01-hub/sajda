@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:quran/quran.dart' as q;
 
@@ -15,8 +16,10 @@ import '../state/streak_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/prayer_window.dart';
+import '../widgets/language_switcher.dart';
 import 'adhkar_screen.dart';
 import 'main_shell.dart';
+import 'map_location_picker_screen.dart';
 import 'prayer_screen.dart';
 import 'qibla_screen.dart';
 import 'quran_screen.dart';
@@ -33,6 +36,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   _PrayerClock? _clock;
   SearchResult? _ayah;
+  Map<String, String>? _ayahTr;
   List<IslamicEvent> _events = [];
   bool _loading = true;
   String? _error;
@@ -85,6 +89,15 @@ class _HomeScreenState extends State<HomeScreen> {
       QuranService.instance.dailyAyah().then((ayah) {
         if (!mounted) return;
         setState(() => _ayah = ayah);
+        if (ayah == null) return;
+        // Translations load separately (backend + day cache) so the Arabic
+        // text is never blocked by a network round-trip.
+        QuranService.instance
+            .dailyAyahTranslations(ayah.surah, ayah.ayah)
+            .then((tr) {
+          if (!mounted || tr == null) return;
+          setState(() => _ayahTr = tr);
+        });
       });
     } catch (e) {
       if (!mounted) return;
@@ -281,6 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final state = context.watch<AppState>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final lang = state.language;
+    final contentLang = state.contentLang;
     final clock = _clock;
     final hero = clock?.current ?? clock?.next;
     final currentName = clock == null
@@ -415,21 +429,59 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Text(
-                              state.displayCityName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                          // Tappable city chip: opens the map picker so the
+                          // user can pin a location when GPS isn't accurate.
+                          // Auto-GPS refresh (on app start / travel) still
+                          // updates this label automatically via AppState.
+                          GestureDetector(
+                            onTap: () {
+                              final loc = state.location;
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => MapLocationPickerScreen(
+                                    initialPosition: (loc != null &&
+                                            (loc.latitude != 0 ||
+                                                loc.longitude != 0))
+                                        ? LatLng(loc.latitude, loc.longitude)
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.location_on_rounded,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 110,
+                                    ),
+                                    child: Text(
+                                      state.displayCityName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -563,44 +615,61 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const Spacer(),
                             if (clock.current != null)
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.18),
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          '${state.t('Next', 'اگلی')}: ${lang == 'ur' ? (AppStrings.prayerNames[clock.next.name] ?? clock.next.name) : clock.next.name} · ${formatTime12(clock.next.time)}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${state.t('Next', 'اگلی')}: ',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    // Prayer name always renders in full —
+                                    // the countdown text shrinks instead.
+                                    Text(
+                                      lang == 'ur'
+                                          ? (AppStrings.prayerNames[clock.next.name] ??
+                                              clock.next.name)
+                                          : clock.next.name,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                      maxLines: 1,
+                                    ),
+                                    Text(
+                                      ' · ${formatTime12(clock.next.time)}',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                    ),
+                                    if (clock.nextIsTomorrow) ...[
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        state.t('Tomorrow', 'کل'),
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.75),
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      if (clock.nextIsTomorrow) ...[
-                                        const SizedBox(width: 5),
-                                        Text(
-                                          state.t('Tomorrow', 'کل'),
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.75),
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
                                     ],
-                                  ),
+                                  ],
                                 ),
                               )
                             else if (clock.nextIsTomorrow)
@@ -770,6 +839,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        ContentLanguageChips(
+                          selected: contentLang,
+                          onChanged: (code) =>
+                              context.read<AppState>().setContentLanguage(code),
+                        ),
+                        const SizedBox(height: 14),
                         Text(
                           _ayah!.arabic,
                           textAlign: TextAlign.right,
@@ -782,42 +857,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontFamily: 'serif',
                           ),
                         ),
-                        if (_ayah!.english.isNotEmpty) ...[
+                        if (contentLang != 'ar' &&
+                            (_ayahTr?[contentLang]?.isNotEmpty ?? false)) ...[
                           const SizedBox(height: 12),
                           Text(
-                            _ayah!.english,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.color,
-                              fontSize: 14.5,
-                              height: 1.7,
-                            ),
-                          ),
-                        ],
-                        if (_ayah!.urdu.isNotEmpty &&
-                            (lang == 'en' || lang == 'ur')) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            _ayah!.urdu,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.color,
-                              fontSize: 14.5,
-                              height: 1.7,
-                            ),
-                          ),
-                        ],
-                        if (_ayah!.urdu.isEmpty && _ayah!.english.isEmpty) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            _ayah!.translation(lang),
-                            textAlign: TextAlign.right,
+                            _ayahTr![contentLang]!,
+                            textAlign: contentLang == 'ur'
+                                ? TextAlign.right
+                                : TextAlign.left,
                             style: TextStyle(
                               color: Theme.of(context)
                                   .textTheme

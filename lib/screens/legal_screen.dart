@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../config.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -138,6 +137,7 @@ class LegalScreen extends StatelessWidget {
                 _licenseRow('flutter_timezone', 'MIT', 'https://pub.dev/packages/flutter_timezone'),
                 _licenseRow('quran', 'MIT', 'https://pub.dev/packages/quran'),
                 _licenseRow('just_audio', 'MIT', 'https://pub.dev/packages/just_audio'),
+                _licenseRow('audio_service', 'MIT', 'https://pub.dev/packages/audio_service'),
                 _licenseRow('share_plus', 'MIT', 'https://pub.dev/packages/share_plus'),
                 _licenseRow('wakelock_plus', 'MIT', 'https://pub.dev/packages/wakelock_plus'),
                 _licenseRow('url_launcher', 'BSD-3', 'https://pub.dev/packages/url_launcher'),
@@ -156,11 +156,11 @@ class LegalScreen extends StatelessWidget {
                    style: theme.textTheme.titleSmall,
                  ),
                  const SizedBox(height: 6),
-                    Text(
-                      state.t(
-                        'Quran text provided by Tanzil Project. Tanzil Quran Text is used under Creative Commons Attribution 3.0. https://tanzil.net/ Translations, Tafsir, and audio recitations provided by Quran Foundation Content API. Adhan audio: Aishatu98, Wikimedia Commons, released under CC0 1.0 Universal. Source: https://commons.wikimedia.org/wiki/File:Adhan.ogg',
-                        'قرآن کی تحریر Tanzil Project کی طرف سے فراہم کی گئی ہے۔ Tanzil Quran Text کو Creative Commons Attribution 3.0 کے تحت استعمال کیا جاتا ہے۔ https://tanzil.net/ ترجمے، تفسیر اور آڈیو تلاوتات Quran Foundation Content API کی طرف سے فراہم کیے گئے ہیں۔ آذان کا آڈیو: عیشتوٴ۸، ویکیمیڈیا کامنز، CC0 1.0 universal کے تحت۔ ماخذ: https://commons.wikimedia.org/wiki/File:Adhan.ogg',
-                      ),
+                     Text(
+                       state.t(
+                          'Quran text provided by Tanzil Project. Tanzil Quran Text is used under Creative Commons Attribution 3.0. https://tanzil.net/ Quran translations and Tafsir provided by Quran Foundation Content API. Ayat of the Day translations sourced via the Al Quran Cloud API (https://alquran.cloud) from published editions: Fateh Muhammad Jalandhry (Urdu), Saheeh International (English), Suhel Farooq Khan & Saifur Rahman Nadwi (Hindi), Kemenag (Indonesian). Adhkar (Hisnul Muslim) translations into Urdu, English, Hindi and Indonesian are generated using AI translation tools. Quran audio recitations provided by the Al Quran Cloud API (https://alquran.cloud) and streamed from the islamic.network CDN, which distributes them freely for public use. Live Quran Radio streams provided by MP3Quran.net (qurango.net). Adhan audio: Aishatu98, Wikimedia Commons, released under CC0 1.0 Universal. Source: https://commons.wikimedia.org/wiki/File:Adhan.ogg',
+                          'قرآن کی تحریر Tanzil Project کی طرف سے فراہم کی گئی ہے۔ Tanzil Quran Text کو Creative Commons Attribution 3.0 کے تحت استعمال کیا جاتا ہے۔ https://tanzil.net/ قرآن کے ترجمے اور تفسیر Quran Foundation Content API کی طرف سے فراہم کیے گئے ہیں۔ آج کی آیت کے ترجمے Al Quran Cloud API (https://alquran.cloud) کے ذریعے شائع شدہ ایڈیشنز سے لیے گئے ہیں: فتح محمد جالندھری (اردو)، Saheeh International (انگریزی)، سہیل فاروق خان و سیف الرحمٰن ندوی (ہندی)، کیمیناگ (انڈونیشیائی)۔ اذکار (حصن مسلم) کے اردو، انگریزی، ہندی اور انڈونیشیائی ترجمے AI ترجمہ ٹولز کے ذریعے تیار کیے گئے ہیں۔ قرآن کی آڈیو تلاوتات Al Quran Cloud API (https://alquran.cloud) کی طرف سے فراہم کی جاتی ہیں اور islamic.network CDN سے اسٹریم ہوتی ہیں جو انہیں عوامی استعمال کے لیے آزادانہ طور پر تقسیم کرتا ہے۔ لائیو قرآن ریڈیو کی نشریات MP3Quran.net (qurango.net) فراہم کرتا ہے۔ آذان کا آڈیو: عیشتو۸، ویکیمیڈیا کامنز، CC0 1.0 universal کے تحت۔ ماخذ: https://commons.wikimedia.org/wiki/File:Adhan.ogg',
+                       ),
                     style: theme.textTheme.bodySmall,
                   ),
                  const SizedBox(height: 8),
@@ -181,7 +181,7 @@ class LegalScreen extends StatelessWidget {
               children: [
                 Text(state.t('App Version', 'ایپ ورژن'), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 6),
-                Text('${AppConfig.appName} v1.0.1', style: theme.textTheme.bodySmall),
+                Text('Sajda: Daily Athan & Qibla v1.0.2', style: theme.textTheme.bodySmall),
                 Text('Package: com.sajda.dataplus', style: theme.textTheme.bodySmall),
               ],
             ),

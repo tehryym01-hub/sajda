@@ -3,20 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/main_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/location_setup_screen.dart';
 import 'services/ayah_notification_service.dart';
+import 'services/adhkar_service.dart';
 import 'services/azkar_audio_provider.dart';
 import 'services/deep_link_service.dart';
 import 'services/dua_notification_service.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/prayer_notification_service.dart';
 import 'services/push_service.dart';
-import 'services/quran_audio_provider.dart';
 import 'services/quran_translation_provider.dart';
 import 'services/tafsir_provider.dart';
 import 'services/wazifa_notification_service.dart';
@@ -51,7 +50,6 @@ Future<void> main() async {
   try {
     await FirebaseAuthService.instance.ensureInitialized();
   } catch (_) {}
-  unawaited(_requestAllPermissions());
   runApp(
     MultiProvider(
       providers: [
@@ -59,9 +57,9 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => StreakState()),
         ChangeNotifierProvider(create: (_) => AudioPlayerState()),
         ChangeNotifierProvider(create: (_) => AzkarAudioProvider()),
+        ChangeNotifierProvider(create: (_) => AdhkarService.instance..ensureTranslations()),
         ChangeNotifierProvider(create: (_) => QuranTranslationProvider()),
         ChangeNotifierProvider(create: (_) => TafsirProvider()),
-        ChangeNotifierProvider(create: (_) => QuranAudioProvider()),
         Provider(create: (_) => AuthService.instance),
       ],
       child: const SajdaApp(),
@@ -81,6 +79,7 @@ class SajdaApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
+        themeMode: state.themeMode,
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
@@ -95,7 +94,7 @@ class SajdaApp extends StatelessWidget {
       navigatorKey: PushService.navigatorKey,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: state.darkMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: state.themeMode,
       locale: lang == 'en' ? const Locale('en') : Locale(lang),
       supportedLocales:
           AppStrings.supportedLanguages.map((l) => Locale(l.code)).toList(),
@@ -105,9 +104,24 @@ class SajdaApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) {
-        return Directionality(
-          textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
-          child: child ?? const SizedBox.shrink(),
+        // Keep status / nav bar icons readable as the theme switches
+        // (including system-default mode, which can flip mid-session).
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarDividerColor: Colors.transparent,
+          ),
+          child: Directionality(
+            textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
       home: const _Root(),
@@ -266,13 +280,4 @@ class _RootState extends State<_Root> {
     }
     return const PopScope(canPop: true, child: MainShell());
   }
-}
-
-Future<void> _requestAllPermissions() async {
-  try {
-    await PrayerNotificationService.instance.requestPermissions();
-  } catch (_) {}
-  try {
-    await Geolocator.requestPermission();
-  } catch (_) {}
 }

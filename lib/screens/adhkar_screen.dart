@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/azkar_model.dart';
+import '../services/adhkar_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/language_switcher.dart';
 import 'zikr_detail_screen.dart';
 
 class AdhkarScreen extends StatelessWidget {
@@ -12,16 +13,27 @@ class AdhkarScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final categories = adhkarCategories;
+    final adhkar = context.watch<AdhkarService>();
+    final categories = adhkar.categories;
+    final contentLang = state.contentLang;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: Text(state.t('Adhkar (Hisnul Muslim)', 'اذکار (حصون مسلم)')),
+        actions: [
+          ContentLanguageMenu(
+            selected: contentLang,
+            onChanged: (code) => context.read<AppState>().setContentLanguage(code),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: categories.length,
         itemBuilder: (ctx, i) {
           final c = categories[i];
+          final name = c.nameFor(contentLang);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GlassCard(
@@ -50,17 +62,28 @@ class AdhkarScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          c.category,
-                          textAlign: TextAlign.right,
+                          name,
+                          textAlign: contentLang == 'ar' || contentLang == 'ur'
+                              ? TextAlign.right
+                              : TextAlign.left,
                           style: TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
-                            fontFamily: 'serif',
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? AppColors.darkText
-                                : const Color(0xFF12352B),
+                            fontFamily: contentLang == 'ar' ? 'serif' : null,
+                            color: dark ? AppColors.darkText : const Color(0xFF12352B),
                           ),
                         ),
+                        if (contentLang != 'ar' && c.hasTranslation(contentLang)) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            c.category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontFamily: 'serif',
+                                ),
+                          ),
+                        ],
                         const SizedBox(height: 3),
                         Text(
                           state.t(

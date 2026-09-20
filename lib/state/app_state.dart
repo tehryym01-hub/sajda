@@ -18,9 +18,14 @@ import '../services/firebase_auth_service.dart';
 import '../services/hijri_date_service.dart';
 import '../services/prayer_notification_service.dart';
 
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
+  AppState() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   static const _kLang = 'sajda_lang';
   static const _kDark = 'sajda_dark';
+  static const _kThemeMode = 'sajda_theme_mode';
   static const _kCity = 'sajda_city';
   static const _kNotifications = 'sajda_notifications';
   static const _kDuaNotifications = 'sajda_dua_notifications';
@@ -37,9 +42,17 @@ class AppState extends ChangeNotifier {
   static const _kTasbeehVibration = 'sajda_tasbeeh_vibration';
   static const _kPrayerMethod = 'sajda_prayer_method';
   static const _kAsrSchool = 'sajda_asr_school';
+  static const _kContentLang = 'sajda_content_lang';
 
   String _language = 'en'; // 'en' | 'ur' | 'ar' | 'bn' | 'id' | 'tr' | 'fa' | 'hi' | 'ms' | 'fr'
+  /// Content translation language for Ayat of the Day & Adhkar
+  /// ('ar' | 'ur' | 'en' | 'hi' | 'id'). Empty = follow the app UI language.
+  String _contentLang = '';
   bool _darkMode = false;
+  /// Effective theme preference: light, dark, or follow the OS.
+  ThemeMode _themeMode = ThemeMode.system;
+  /// Cached platform brightness so [darkMode] is correct while in system mode.
+  bool _platformDark = false;
   bool _notificationsEnabled = false;
   bool _duaNotificationsEnabled = false;
   bool _wazifaNotificationsEnabled = false;
@@ -85,7 +98,26 @@ class AppState extends ChangeNotifier {
 
   String get language => _language;
   bool get isUrdu => _language == 'ur';
-  bool get darkMode => _darkMode;
+
+  /// Effective content translation language; snaps to 'en' when the UI
+  /// language is one we don't ship content translations for.
+  String get contentLang {
+    const supported = {'ar', 'ur', 'en', 'hi', 'id'};
+    final code = _contentLang.isNotEmpty ? _contentLang : _language;
+    return supported.contains(code) ? code : 'en';
+  }
+
+  bool get hasCustomContentLang => _contentLang.isNotEmpty;
+
+  /// Explicit theme preference selected on the settings screen.
+  ThemeMode get themeMode => _themeMode;
+
+  /// True when the UI is currently dark (explicit dark, or system + OS dark).
+  bool get darkMode {
+    if (_themeMode == ThemeMode.system) return _platformDark;
+    return _themeMode == ThemeMode.dark;
+  }
+
   bool get notificationsEnabled => _notificationsEnabled;
   bool get duaNotificationsEnabled => _duaNotificationsEnabled;
   bool get wazifaNotificationsEnabled => _wazifaNotificationsEnabled;
@@ -169,7 +201,19 @@ class AppState extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _language = prefs.getString(_kLang) ?? 'en';
+    _contentLang = prefs.getString(_kContentLang) ?? '';
     _darkMode = prefs.getBool(_kDark) ?? false;
+    final themePref = prefs.getString(_kThemeMode);
+    _themeMode = switch (themePref) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      'system' => ThemeMode.system,
+      // Migration: users who toggled the old dark-mode switch keep it.
+      _ => (_darkMode ? ThemeMode.dark : ThemeMode.system),
+    };
+    _platformDark =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark;
     _notificationsEnabled = prefs.getBool(_kNotifications) ?? true;
     _duaNotificationsEnabled = prefs.getBool(_kDuaNotifications) ?? true;
     _wazifaNotificationsEnabled =
@@ -576,6 +620,14 @@ class AppState extends ChangeNotifier {
     await prefs.setString(_kLang, lang);
   }
 
+  Future<void> setContentLanguage(String code) async {
+    if (_contentLang == code) return;
+    _contentLang = code;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kContentLang, code);
+  }
+
   Future<void> setOnboardingDone() async {
     _onboardingDone = true;
     notifyListeners();
@@ -617,11 +669,36 @@ class AppState extends ChangeNotifier {
     await prefs.setInt(_kQuranAyah, ayah);
   }
 
-  Future<void> toggleDarkMode() async {
-    _darkMode = !_darkMode;
+  /// Sets the theme preference (light / dark / system default).
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) return;
+    _themeMode = mode;
+    _darkMode = mode == ThemeMode.dark;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeMode, mode.name);
+    // Keep the legacy flag in sync for older app versions.
     await prefs.setBool(_kDark, _darkMode);
+  }
+
+  Future<void> toggleDarkMode() {
+    return setThemeMode(
+      _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
+    );
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    _platformDark =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark;
+    if (_themeMode == ThemeMode.system) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> setCity(CityData? city) async {

@@ -13,6 +13,18 @@ class AppColors {
   static const primaryDeep = Color(0xFF00695C);
   static const primaryLight = Color(0xFFE0F7F3);
 
+  // ── Brand Accent — Soft Emerald (light mode) ─────────────
+  static const emerald = Color(0xFF0D5C46);
+  static const emeraldSoft = Color(0xFF116E57);
+  static const emeraldTint = Color(0xFFE4EFEB);
+
+  /// Adaptive brand accent: deep emerald on light, vivid teal on dark.
+  static Color accent(bool isDark) => isDark ? primary : emerald;
+
+  /// Adaptive accent gradient for hero panels / headers.
+  static List<Color> accentGradient(bool isDark) =>
+      isDark ? gradientTeal : [emerald, emeraldSoft];
+
   // ── Accent — Pastel Cards ────────────────────────────────
   static const pastelPink = Color(0xFFFFB3BA);
   static const pastelGreen = Color(0xFFBAFFC9);
@@ -28,13 +40,16 @@ class AppColors {
   static const gradientOcean = [Color(0xFFBAE1FF), Color(0xFFE0F7F3)];
 
   // ── Light Mode ───────────────────────────────────────────
-  static const lightBackground = Color(0xFFF8FFFE);
+  static const lightBackground = Color(0xFFF5F7FA);
   static const lightCard = Color(0xFFFFFFFF);
-  static const lightText = Color(0xFF1A1A2E);
-  static const lightSecondaryText = Color(0xFF6B7280);
-  static const lightMutedText = Color(0xFF9CA3AF);
-  static const lightBorder = Color(0xFFE5E7EB);
-  static const lightDivider = Color(0xFFF3F4F6);
+  static const lightText = Color(0xFF1E293B);
+  static const lightSecondaryText = Color(0xFF64748B);
+  static const lightMutedText = Color(0xFF94A3B8);
+  static const lightBorder = Color(0xFFE5E9F0);
+  static const lightDivider = Color(0xFFF1F4F8);
+  static const lightFieldFill = Color(0xFFF0F3F7);
+  static const lightChip = Color(0xFFEDF1F6);
+  static const lightCardShadow = Color(0x121E293B);
 
   // ── Dark Mode ────────────────────────────────────────────
   static const darkBackground = Color(0xFF0B1210);
@@ -44,19 +59,19 @@ class AppColors {
   static const darkMuted = Color(0xFF9AABA4);
 
   // ── Neutral ──────────────────────────────────────────────
-  static const background = Color(0xFFF8FFFE);
+  static const background = Color(0xFFF5F7FA);
   static const surface = Colors.white;
-  static const textDark = Color(0xFF1A1A2E);
-  static const textMuted = Color(0xFF6B7280);
+  static const textDark = Color(0xFF1E293B);
+  static const textMuted = Color(0xFF64748B);
   static const danger = Color(0xFFEF4444);
   static const success = Color(0xFF22C55E);
 
   // ── Shadow ───────────────────────────────────────────────
-  static const shadow = Color(0x1400BFA5);
-  static const shadowSoft = Color(0x0A00BFA5);
+  static const shadow = Color(0x140D5C46);
+  static const shadowSoft = Color(0x0A0D5C46);
 
   // ── Dark/Light adaptive helpers ───────────────────────────
-  static Color primaryPill(bool isDark) => isDark ? primary.withValues(alpha: 0.18) : primaryLight;
+  static Color primaryPill(bool isDark) => isDark ? primary.withValues(alpha: 0.18) : emeraldTint;
   static Color surfaceCard(bool isDark) => isDark ? darkSurface : lightCard;
   static Color borderLine(bool isDark) => isDark ? darkSurfaceAlt : lightBorder;
   static Color textMain(bool isDark) => isDark ? darkText : lightText;
@@ -70,11 +85,15 @@ class AppTheme {
 
   static ThemeData _base(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    final accent = AppColors.accent(isDark);
+    final accentTint = isDark
+        ? AppColors.primary.withValues(alpha: 0.2)
+        : AppColors.emeraldTint;
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: accent,
       brightness: brightness,
-      primary: AppColors.primary,
-      secondary: AppColors.primaryDark,
+      primary: accent,
+      secondary: isDark ? AppColors.primaryDark : AppColors.emeraldSoft,
       surface: isDark ? AppColors.darkSurface : AppColors.surface,
     );
 
@@ -104,7 +123,8 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: isDark ? AppColors.darkSurface : AppColors.lightCard,
-        elevation: 0,
+        elevation: isDark ? 0 : 1,
+        shadowColor: isDark ? Colors.black26 : AppColors.lightCardShadow,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -112,14 +132,14 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightCard,
-        indicatorColor: isDark ? AppColors.primary.withValues(alpha: 0.2) : AppColors.primaryLight,
+        indicatorColor: accentTint,
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         height: 76,
         elevation: 8,
         shadowColor:
-            isDark ? Colors.black54 : AppColors.primary.withValues(alpha: 0.15),
+            isDark ? Colors.black54 : AppColors.emerald.withValues(alpha: 0.12),
         labelTextStyle: WidgetStatePropertyAll(
           TextStyle(
             fontSize: 11,
@@ -130,7 +150,7 @@ class AppTheme {
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: selected ? AppColors.primary : mutedText,
+            color: selected ? accent : mutedText,
             size: selected ? 26 : 24,
           );
         }),
@@ -143,7 +163,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor:
-            isDark ? AppColors.darkSurfaceAlt : const Color(0xFFF9FAFB),
+            isDark ? AppColors.darkSurfaceAlt : AppColors.lightFieldFill,
         hintStyle: TextStyle(color: mutedText, fontSize: 14),
         labelStyle:
             TextStyle(color: mutedText, fontWeight: FontWeight.w500),
@@ -158,19 +178,19 @@ class AppTheme {
           borderSide: BorderSide(
             color: isDark
                 ? AppColors.darkSurfaceAlt
-                : const Color(0xFFE5E7EB),
+                : AppColors.lightBorder,
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+          borderSide: BorderSide(color: accent, width: 1.6),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: accent,
           foregroundColor: Colors.white,
           elevation: 0,
           minimumSize: const Size(48, 52),
@@ -187,11 +207,11 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
+          foregroundColor: accent,
           side: BorderSide(
             color: isDark
                 ? AppColors.darkSurfaceAlt
-                : const Color(0xFFD1E7DD),
+                : AppColors.emerald.withValues(alpha: 0.35),
           ),
           minimumSize: const Size(48, 52),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -206,7 +226,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
+          foregroundColor: accent,
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -224,8 +244,8 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor:
-            isDark ? AppColors.darkSurfaceAlt : const Color(0xFFF3F4F6),
-        selectedColor: AppColors.primary,
+            isDark ? AppColors.darkSurfaceAlt : AppColors.lightChip,
+        selectedColor: accent,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -242,9 +262,9 @@ class AppTheme {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
       tabBarTheme: TabBarThemeData(
-        labelColor: AppColors.primary,
+        labelColor: accent,
         unselectedLabelColor: mutedText,
-        indicatorColor: AppColors.primary,
+        indicatorColor: accent,
         indicatorSize: TabBarIndicatorSize.label,
         labelStyle: const TextStyle(
           fontSize: 14.5,
@@ -284,12 +304,12 @@ class AppTheme {
         dragHandleColor: mutedText.withValues(alpha: 0.4),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: AppColors.primary,
-        linearTrackColor: isDark ? AppColors.darkSurfaceAlt : AppColors.primaryLight,
-        circularTrackColor: isDark ? AppColors.darkSurfaceAlt : AppColors.primaryLight,
+        color: accent,
+        linearTrackColor: accentTint,
+        circularTrackColor: accentTint,
       ),
       listTileTheme: ListTileThemeData(
-        iconColor: AppColors.primary,
+        iconColor: accent,
         textColor: baseText,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -410,7 +430,7 @@ class GlassCard extends StatelessWidget {
               BoxShadow(
                 color: isDark
                     ? Colors.black26
-                    : AppColors.primary.withValues(alpha: 0.06),
+                    : AppColors.lightCardShadow,
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -449,6 +469,7 @@ class HeroPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -456,11 +477,11 @@ class HeroPanel extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: colors ?? AppColors.gradientTeal,
+          colors: colors ?? AppColors.accentGradient(isDark),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
+            color: AppColors.accent(isDark).withValues(alpha: 0.3),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -536,10 +557,12 @@ class SectionHeader extends StatelessWidget {
           width: 4,
           height: 22,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: AppColors.gradientTeal,
+              colors: AppColors.accentGradient(
+                Theme.of(context).brightness == Brightness.dark,
+              ),
             ),
             borderRadius: BorderRadius.circular(2),
           ),
@@ -678,28 +701,29 @@ class FilterPill extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary
-              : (isDark ? AppColors.darkSurfaceAlt : Colors.white),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
+          decoration: BoxDecoration(
             color: selected
-                ? AppColors.primary
-                : (isDark
-                    ? AppColors.darkSurfaceAlt
-                    : const Color(0xFFE5E7EB)),
+                ? AppColors.accent(isDark)
+                : (isDark ? AppColors.darkSurfaceAlt : Colors.white),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: selected
+                  ? AppColors.accent(isDark)
+                  : (isDark
+                      ? AppColors.darkSurfaceAlt
+                      : AppColors.lightBorder),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color:
+                          AppColors.accent(isDark).withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
         child: Text(
           label,
           style: TextStyle(
@@ -734,7 +758,8 @@ class ProgressRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ringColor = color ?? AppColors.primary;
+    final ringColor = color ??
+        AppColors.accent(Theme.of(context).brightness == Brightness.dark);
     return SizedBox(
       width: size,
       height: size,
@@ -831,19 +856,19 @@ class EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                shape: BoxShape.circle,
+              Container(
+                width: 84,
+                height: 84,
+                decoration: const BoxDecoration(
+                  color: AppColors.emeraldTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.inbox_rounded,
+                  size: 40,
+                  color: AppColors.emerald,
+                ),
               ),
-              child: const Icon(
-                Icons.inbox_rounded,
-                size: 40,
-                color: AppColors.primary,
-              ),
-            ),
             const SizedBox(height: 16),
             Text(
               message,
@@ -858,10 +883,13 @@ class EmptyView extends StatelessWidget {
 }
 
 void showAppSnack(BuildContext context, String message, {bool error = false}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message),
-      backgroundColor: error ? AppColors.danger : AppColors.primaryDark,
+      backgroundColor: error
+          ? AppColors.danger
+          : (isDark ? AppColors.primaryDark : AppColors.emerald),
     ),
   );
 }

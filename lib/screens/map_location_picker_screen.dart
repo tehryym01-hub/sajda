@@ -182,6 +182,12 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                   ),
                 ],
               ),
+              // OpenStreetMap tiles require visible attribution (ODbL).
+              const RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+              ),
             ],
           ),
           // Address panel

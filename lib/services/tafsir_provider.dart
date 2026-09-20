@@ -48,7 +48,18 @@ class TafsirProvider extends ChangeNotifier {
 
   TafsirState get state => _state;
 
+  /// Successful results are kept per surah so re-opening the screen or
+  /// toggling tabs never refetches.
+  final Map<int, TafsirState> _cache = {};
+
   Future<void> loadSurahTafsir(int surah) async {
+    final cached = _cache[surah];
+    if (cached != null) {
+      _state = cached;
+      notifyListeners();
+      return;
+    }
+
     _state = const TafsirState.unavailable('Loading tafsir...');
     notifyListeners();
 
@@ -57,6 +68,7 @@ class TafsirProvider extends ChangeNotifier {
       final res = await api.get('/quran/surah/$surah/tafsir');
       final data = res['data'];
       final tafsirs = <int, String>{};
+      String? source;
 
       if (data is List) {
         for (final verse in data) {
@@ -69,6 +81,7 @@ class TafsirProvider extends ChangeNotifier {
           }
         }
       } else if (data is Map && data['verses'] is List) {
+        source = data['tafsir_name']?.toString();
         final verses = data['verses'] as List;
         for (final verse in verses) {
           if (verse is Map<String, dynamic>) {
@@ -82,7 +95,8 @@ class TafsirProvider extends ChangeNotifier {
       }
 
       if (tafsirs.isNotEmpty) {
-        _state = TafsirState.available(tafsirs: tafsirs);
+        _state = TafsirState.available(tafsirs: tafsirs, source: source);
+        _cache[surah] = _state;
       } else {
         _state = const TafsirState.unavailable(
           'Tafsir not available for this surah',
@@ -106,6 +120,7 @@ class TafsirProvider extends ChangeNotifier {
   }
 
   void reset() {
+    _cache.clear();
     _state = const TafsirState.unavailable('Tafsir temporarily unavailable');
     notifyListeners();
   }

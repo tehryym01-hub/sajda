@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import '../models/models.dart';
+import '../models/azkar_model.dart';
 import '../state/app_state.dart';
 import '../services/hijri_date_service.dart';
 import '../services/auth_service.dart';
@@ -354,6 +355,24 @@ class ApiClient {
     final json = await _get('/wazifas/day/$day');
     final data = json['data'];
     return data == null ? null : WazifaModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // ---------- Ayat of the Day (multi-language) ----------
+
+  /// Returns the ayat translations document:
+  /// { surah, ayah, arabic, translations: {ar,ur,en,hi,id} } or null.
+  Future<Map<String, dynamic>?> getAyatTranslations(int surah, int ayah) async {
+    final json = await _get('/ayat/$surah/$ayah');
+    return json['data'] as Map<String, dynamic>?;
+  }
+
+  // ---------- Adhkar (multi-language) ----------
+
+  Future<List<ZikrCategory>> getAdhkar() async {
+    final json = await _get('/adhkar');
+    return (json['data'] as List? ?? [])
+        .map((e) => ZikrCategory.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // ---------- Hijri ----------

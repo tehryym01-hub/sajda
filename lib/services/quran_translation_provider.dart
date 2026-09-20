@@ -48,17 +48,34 @@ class QuranTranslationProvider extends ChangeNotifier {
 
   QuranTranslationState get state => _state;
 
-  Future<void> loadSurahTranslations(int surah) async {
+  /// Successful results are kept per surah+lang so re-opening the screen or
+  /// toggling tabs never refetches.
+  final Map<String, QuranTranslationState> _cache = {};
+
+  QuranTranslationState? cachedFor(int surah, String lang) =>
+      _cache['$surah:$lang'];
+
+  Future<void> loadSurahTranslations(int surah, {String lang = 'ur'}) async {
+    final cached = _cache['$surah:$lang'];
+    if (cached != null) {
+      _state = cached;
+      notifyListeners();
+      return;
+    }
+
     _state = const QuranTranslationState.unavailable('Loading translations...');
     notifyListeners();
 
     try {
       final api = ApiClient.instance;
-      final res = await api.get('/quran/surah/$surah/translations');
+      final res =
+          await api.get('/quran/surah/$surah/translations?lang=$lang');
       final data = res['data'];
       final translations = <int, String>{};
+      String? source;
 
       if (data is Map && data['verses'] is List) {
+        source = data['translation_name']?.toString();
         final verses = data['verses'] as List;
         for (final verse in verses) {
           if (verse is Map<String, dynamic>) {
@@ -79,7 +96,11 @@ class QuranTranslationProvider extends ChangeNotifier {
       }
 
       if (translations.isNotEmpty) {
-        _state = QuranTranslationState.available(translations: translations);
+        _state = QuranTranslationState.available(
+          translations: translations,
+          source: source,
+        );
+        _cache['$surah:$lang'] = _state;
       } else {
         _state = const QuranTranslationState.unavailable(
           'Translations not available for this surah',
@@ -103,6 +124,7 @@ class QuranTranslationProvider extends ChangeNotifier {
   }
 
   void reset() {
+    _cache.clear();
     _state = const QuranTranslationState.unavailable(
       'Translation temporarily unavailable',
     );

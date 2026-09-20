@@ -61,3 +61,8 @@ app.*.map.json
 /Account-Deletion/
 
 .firebase/
+
+# Never commit: signing certificates & local DB-URI debug script
+certificates (1).zip
+upload_cert.der
+backend/.std_uri.mjs

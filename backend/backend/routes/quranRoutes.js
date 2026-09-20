@@ -3,15 +3,17 @@ import {
   getChapters,
   getChapter,
   getVerse,
-  getVerseTranslations,
-  getVerseTafsir,
-  getSurahWithTranslations,
-  getSurahWithTafsir,
   getSurahAudio,
   searchQuran,
   getJuz,
   getPage,
 } from '../services/quranFoundationService.js';
+import {
+  fetchSurahTranslations,
+  fetchVerseTranslation,
+  fetchSurahTafsir,
+  fetchVerseTafsir,
+} from '../services/quranApiService.js';
 
 const router = express.Router();
 
@@ -55,10 +57,10 @@ router.get('/verses/:surah/:ayah/translations', async (req, res) => {
   try {
     const surah = parseInt(req.params.surah);
     const ayah = parseInt(req.params.ayah);
-    if (isNaN(surah) || isNaN(ayah)) {
+    if (isNaN(surah) || isNaN(ayah) || surah < 1 || surah > 114) {
       return res.status(400).json({ success: false, message: 'Invalid verse parameters' });
     }
-    const data = await getVerseTranslations(surah, ayah);
+    const data = await fetchVerseTranslation(surah, ayah, req.query.lang);
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to fetch translation' });
@@ -69,10 +71,10 @@ router.get('/verses/:surah/:ayah/tafsir', async (req, res) => {
   try {
     const surah = parseInt(req.params.surah);
     const ayah = parseInt(req.params.ayah);
-    if (isNaN(surah) || isNaN(ayah)) {
+    if (isNaN(surah) || isNaN(ayah) || surah < 1 || surah > 114) {
       return res.status(400).json({ success: false, message: 'Invalid verse parameters' });
     }
-    const data = await getVerseTafsir(surah, ayah);
+    const data = await fetchVerseTafsir(surah, ayah);
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to fetch tafsir' });
@@ -138,7 +140,9 @@ router.get('/surah/:surah/translations', async (req, res) => {
     if (isNaN(surah) || surah < 1 || surah > 114) {
       return res.status(400).json({ success: false, message: 'Invalid surah number' });
     }
-    const data = await getSurahWithTranslations(surah);
+    // lang=ur (default) serves the public-domain Jalandhari/Junagarhi chain,
+    // lang=en serves the public-domain Yusuf Ali/Pickthall chain.
+    const data = await fetchSurahTranslations(surah, req.query.lang);
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to fetch translations' });
@@ -151,7 +155,7 @@ router.get('/surah/:surah/tafsir', async (req, res) => {
     if (isNaN(surah) || surah < 1 || surah > 114) {
       return res.status(400).json({ success: false, message: 'Invalid surah number' });
     }
-    const data = await getSurahWithTafsir(surah);
+    const data = await fetchSurahTafsir(surah);
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to fetch tafsir' });

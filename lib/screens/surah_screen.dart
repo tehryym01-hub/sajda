@@ -7,8 +7,10 @@ import '../services/quran_service.dart';
 import '../services/quran_translation_provider.dart';
 import '../services/tafsir_provider.dart';
 import '../state/app_state.dart';
+import '../state/audio_player_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/share_image.dart';
+import 'audio_player_screen.dart';
 import 'mushaf_screen.dart';
 
 class SurahScreen extends StatefulWidget {
@@ -34,13 +36,112 @@ class _SurahScreenState extends State<SurahScreen> {
     WakelockPlus.enable();
     _loadBookmarks();
     context.read<AppState>().setQuranPosition(_surah.number, widget.initialVerse ?? 1);
+    // The default view mode is translation — start fetching immediately so
+    // translations render as soon as the list builds (they never loaded
+    // before unless the user tapped the segment button).
+    _loadTranslations();
+    final audio = context.read<AudioPlayerState>();
+    audio.addListener(_onAudioChanged);
+    if (audio.isPlayingSurah(_surah.number)) {
+      _activeVerse = audio.currentAyah;
+    }
+  }
+
+  void _loadTranslations() {
+    final lang = context.read<AppState>().isUrdu ? 'ur' : 'en';
+    context.read<QuranTranslationProvider>().loadSurahTranslations(
+          _surah.number,
+          lang: lang,
+        );
   }
 
   @override
   void dispose() {
+    context.read<AudioPlayerState>().removeListener(_onAudioChanged);
     WakelockPlus.disable();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Follows verse-by-verse recitation: highlights and scrolls to the ayah
+  /// currently being played.
+  void _onAudioChanged() {
+    final audio = context.read<AudioPlayerState>();
+    if (!audio.isPlayingSurah(_surah.number)) {
+      if (_activeVerse != null) {
+        setState(() => _activeVerse = null);
+      }
+      return;
+    }
+    final playingAyah = audio.currentAyah;
+    if (_activeVerse != playingAyah && mounted) {
+      setState(() => _activeVerse = playingAyah);
+      _scrollToVerse(playingAyah);
+    }
+  }
+
+  Future<void> _pickReciter() async {
+    final audio = context.read<AudioPlayerState>();
+    final state = context.read<AppState>();
+    final chosen = await showModalBottomSheet<ReciterChoice>(
+      context: context,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? AppColors.darkSurface
+          : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<String>(
+          groupValue: audio.reciterCode,
+          onChanged: (code) {
+            if (code == null) return;
+            for (final r in QuranService.reciters) {
+              if (r.code == code) {
+                Navigator.of(ctx).pop(r);
+                return;
+              }
+            }
+          },
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 20, right: 20),
+                child: Text(
+                  state.t('Select Reciter', 'قاری منتخب کریں'),
+                  style: Theme.of(ctx).textTheme.titleLarge,
+                ),
+              ),
+              for (final r in QuranService.reciters)
+                RadioListTile<String>(
+                  value: r.code,
+                  title: Text(r.name),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (chosen != null) {
+      await audio.setReciter(chosen);
+    }
+  }
+
+  void _playSurah() {
+    final audio = context.read<AudioPlayerState>();
+    if (audio.isPlayingSurah(_surah.number)) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AudioPlayerScreen()),
+      );
+    } else {
+      audio.playSurah(_surah);
+    }
+  }
+
+  void _playFromAyah(int ayah) {
+    context.read<AudioPlayerState>().playSurah(_surah, fromAyah: ayah);
   }
 
   Future<void> _loadBookmarks() async {
@@ -79,8 +180,8 @@ class _SurahScreenState extends State<SurahScreen> {
 
   Future<void> _share(int ayah) async {
     final arabic = QuranService.instance.verseArabic(_surah.number, ayah);
-    final translation = QuranService.instance
-        .verseTranslation(_surah.number, ayah, urdu: true);
+    final translation = await QuranService.instance
+        .verseTranslationAsync(_surah.number, ayah, urdu: true);
     await SharePlus.instance.share(
       ShareParams(
         text: '${_surah.nameEn} $ayah\n\n$arabic\n\n$translation\n\n- SAJDA: DAILY ATHAN & QIBLA',
@@ -90,10 +191,11 @@ class _SurahScreenState extends State<SurahScreen> {
 
   Future<void> _shareImage(int ayah) async {
     final arabic = QuranService.instance.verseArabic(_surah.number, ayah);
-    final urdu = QuranService.instance
-        .verseTranslation(_surah.number, ayah, urdu: true);
-    final english = QuranService.instance
-        .verseTranslation(_surah.number, ayah, urdu: false);
+    final urdu = await QuranService.instance
+        .verseTranslationAsync(_surah.number, ayah, urdu: true);
+    final english = await QuranService.instance
+        .verseTranslationAsync(_surah.number, ayah, urdu: false);
+    if (!mounted) return;
     await shareWidgetAsImage(
       context: context,
       fileName: 'ayah_${_surah.number}_$ayah',
@@ -164,7 +266,9 @@ class _SurahScreenState extends State<SurahScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final audio = context.watch<AudioPlayerState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surahPlaying = audio.isPlayingSurah(_surah.number);
 
     return Scaffold(
       appBar: AppBar(
@@ -187,13 +291,15 @@ class _SurahScreenState extends State<SurahScreen> {
             tooltip: state.t('Mushaf', 'مصحف'),
           ),
           IconButton(
-            onPressed: null,
+            onPressed: _pickReciter,
             icon: const Icon(Icons.record_voice_over_outlined),
-            tooltip: 'Reciter',
+            tooltip: '${state.t('Reciter', 'قاری')}: ${audio.reciterName}',
           ),
           IconButton(
-            onPressed: null,
-            icon: const Icon(Icons.play_circle_outline_rounded),
+            onPressed: _playSurah,
+            icon: surahPlaying && audio.playing
+                ? const Icon(Icons.pause_circle_outline_rounded)
+                : const Icon(Icons.play_circle_outline_rounded),
             tooltip: state.t('Play surah', 'سورہ سنیں'),
           ),
         ],
@@ -226,7 +332,7 @@ class _SurahScreenState extends State<SurahScreen> {
                 final newMode = s.first;
                 setState(() => _viewMode = newMode);
                 if (newMode == 1) {
-                  context.read<QuranTranslationProvider>().loadSurahTranslations(_surah.number);
+                  _loadTranslations();
                 } else if (newMode == 2) {
                   context.read<TafsirProvider>().loadSurahTafsir(_surah.number);
                 }
@@ -252,6 +358,44 @@ class _SurahScreenState extends State<SurahScreen> {
               ),
             ),
           ),
+          // Attribution of the translation source (public domain).
+          if (_viewMode == 1)
+            Builder(
+              builder: (context) {
+                final src = context
+                    .watch<QuranTranslationProvider>()
+                    .state
+                    .source;
+                if (src == null || src.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Text(
+                    '${state.t('Translation', 'ترجمہ')}: $src',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+            ),
+          if (_viewMode == 2)
+            Builder(
+              builder: (context) {
+                final src = context.watch<TafsirProvider>().state.source;
+                if (src == null || src.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Text(
+                    src,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+            ),
           Expanded(
             child: ListView.builder(
               controller: _scroll,
@@ -407,9 +551,17 @@ class _SurahScreenState extends State<SurahScreen> {
                               tooltip: state.t('Share as image', 'تصویر شیئر کریں'),
                             ),
                              IconButton(
-                               onPressed: null,
-                               icon: const Icon(Icons.headphones_outlined, color: AppColors.textMuted, size: 20),
-                               tooltip: state.t('Play ayah', 'آیت سنیں'),
+                               onPressed: () => _playFromAyah(ayah),
+                               icon: Icon(
+                                 isActive && audio.playing
+                                     ? Icons.volume_up_rounded
+                                     : Icons.headphones_outlined,
+                                 color: isActive
+                                     ? AppColors.primary
+                                     : AppColors.textMuted,
+                                 size: 20,
+                               ),
+                               tooltip: state.t('Play from this ayah', 'اس آیت سے سنیں'),
                              ),
                           ],
                         ),

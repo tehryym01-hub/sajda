@@ -60,7 +60,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
       if (state.notificationsEnabled) {
         try {
           await PrayerNotificationService.instance
-              .scheduleAll(times.prayers, isUrdu: state.isUrdu, timezone: state.locationTimezone, prayerModes: state.prayerNotificationModes);
+              .scheduleAll(times.prayers, isUrdu: state.isUrdu, timezone: state.locationTimezone, prayerModes: state.prayerNotificationModes, city: state.displayCityName);
         } catch (_) {}
       }
     } catch (e) {

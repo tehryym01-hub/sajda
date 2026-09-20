@@ -22,6 +22,8 @@ import authRoutes from './routes/auth.js';
 import streakRoutes from './routes/streakRoutes.js';
 import streakV2Routes from './routes/streakV2Routes.js';
 import quranRoutes from './routes/quranRoutes.js';
+import ayatRoutes from './routes/ayatRoutes.js';
+import adhkarRoutes from './routes/adhkarRoutes.js';
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -117,6 +119,8 @@ app.use('/api/streak', authenticateToken, checkDBConnection, streakRoutes);
 // v1 stays mounted for older app versions until they are retired.
 app.use('/api/streak/v2', authenticateToken, checkDBConnection, streakV2Routes);
 app.use('/api/quran', checkDBConnection, quranRoutes);
+app.use('/api/ayat', checkDBConnection, ayatRoutes);
+app.use('/api/adhkar', checkDBConnection, adhkarRoutes);
 
 // Fallback: serve index.html for any non-API route (SPA)
 app.get('*', (req, res) => {

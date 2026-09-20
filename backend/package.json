@@ -13,6 +13,7 @@
     "lint": "tsc --noEmit",
     "dev": "node backend/server.js",
     "seed": "node backend/scripts/seed.js",
+    "translate:content": "node backend/scripts/translateContent.js",
     "start": "node backend/server.js"
   },
   "dependencies": {

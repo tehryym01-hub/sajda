@@ -1,122 +1,368 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/quran_audio_service.dart';
 import '../services/quran_service.dart';
+import '../services/radio_service.dart';
+import '../services/sajda_audio_handler.dart';
 
+/// App-wide audio state for:
+///  - Surah recitations (Al Quran Cloud API + islamic.network CDN,
+///    copyright-free verse-by-verse streams)
+///  - Live Quran radio (MP3Quran.net Icecast streams, free public broadcast)
+///
+/// Playback runs through [SajdaAudioHandler] (just_audio + audio_service),
+/// so media-notification controls and background playback work out of the box.
 class AudioPlayerState extends ChangeNotifier {
-  final AudioPlayer _player = AudioPlayer();
-  StreamSubscription<PlayerState>? _stateSub;
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<Duration?>? _durationSub;
+  SajdaAudioHandler? _handler;
+  AudioPlayer? _player;
+  StreamSubscription? _stateSub;
+  StreamSubscription? _positionSub;
+  StreamSubscription? _durationSub;
+  StreamSubscription? _sequenceSub;
+  StreamSubscription? _processingSub;
+  final Completer<void> _ready = Completer<void>();
+  int _token = 0;
+
+  static const _kReciter = 'sajda_quran_reciter';
 
   SurahInfo? currentSurah;
-  String reciterCode =
-      QuranService.reciters.isNotEmpty ? QuranService.reciters.first.code : '';
-  String reciterName =
-      QuranService.reciters.isNotEmpty ? QuranService.reciters.first.name : '';
-  String? streamUrl;
-  String? streamTitle;
-  String? streamSubtitle;
+  RadioStation? radioStation;
+  String reciterCode = QuranService.reciters.first.code;
+  String reciterName = QuranService.reciters.first.name;
+
   bool _playing = false;
+  bool _loading = false;
+  bool _buffering = false;
+  bool _repeatAyah = false;
   Duration _position = Duration.zero;
   Duration? _duration;
-
-  bool get playing => _playing;
-  Duration get position => _position;
-  Duration? get duration => _duration;
-  bool get hasAudio => currentSurah != null || streamUrl != null;
-
-  Future<void> playStream(String title, String subtitle, String url) async {
-    streamUrl = url;
-    streamTitle = title;
-    streamSubtitle = subtitle;
-    currentSurah = null;
-    notifyListeners();
-    try {
-      await _player.stop();
-      await _player.setUrl(url);
-      await _player.setLoopMode(LoopMode.one);
-      await _player.play();
-    } catch (_) {
-      streamUrl = null;
-      notifyListeners();
-    }
-  }
+  int _ayahIndex = 0; // 0-based index within the surah playlist
+  int _ayahCount = 0;
+  String? _error;
 
   AudioPlayerState() {
-    _stateSub = _player.playerStateStream.listen((state) {
-      final next = state.playing;
-      if (next != _playing) {
-        _playing = next;
-        notifyListeners();
-      }
-    });
-    _positionSub = _player.positionStream.listen((p) {
-      _position = p;
-      notifyListeners();
-    });
-    _durationSub = _player.durationStream.listen((d) {
-      _duration = d;
-      notifyListeners();
-    });
+    unawaited(_bootstrap());
   }
 
-  Future<void> playSurah(SurahInfo surah, String code, String name) async {
-    currentSurah = surah;
-    reciterCode = code;
-    reciterName = name;
-    streamUrl = null;
-    streamTitle = null;
-    streamSubtitle = null;
-    notifyListeners();
+  // ---------- Getters ----------
+
+  bool get playing => _playing;
+  bool get loading => _loading;
+  bool get buffering => _buffering;
+  bool get repeatAyah => _repeatAyah;
+  Duration get position => _position;
+  Duration? get duration => _duration;
+  String? get error => _error;
+  bool get isLive => radioStation != null;
+  bool get hasAudio => currentSurah != null || radioStation != null;
+  bool get isReady => _ready.isCompleted && _player != null;
+
+  /// 1-based ayah number currently playing (surah mode only).
+  int get currentAyah => _ayahIndex + 1;
+  int get currentAyahCount => _ayahCount;
+
+  bool isPlayingSurah(int surahNumber) =>
+      currentSurah?.number == surahNumber && radioStation == null;
+
+  bool isPlayingRadio(RadioStation station) =>
+      radioStation?.url == station.url;
+
+  // ---------- Bootstrap ----------
+
+  Future<void> _bootstrap() async {
+    await _loadSavedReciter();
     try {
-      await _player.stop();
-      await _player.setUrl(
-        QuranService.instance.surahAudioUrl(surah.number, code),
+      _handler = await AudioService.init(
+        builder: () => SajdaAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'app.sajda.dataplus.audio',
+          androidNotificationChannelName: 'Quran Audio',
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
+        ),
       );
-      await _player.setLoopMode(LoopMode.one);
-      await _player.play();
     } catch (_) {
-      currentSurah = null;
+      _handler = null;
+    } finally {
+      _player = _handler?.player;
+      if (_player != null) _subscribe(_player!);
+      _ready.complete();
       notifyListeners();
     }
   }
 
-  Future<void> playVerse(int surah, int ayah) async {
+  Future<void> _loadSavedReciter() async {
     try {
-      await _player.stop();
-      streamUrl = null;
-      streamTitle = null;
-      streamSubtitle = null;
-      await _player.setUrl(
-        QuranService.instance.verseAudioUrl(surah, ayah, reciterCode),
-      );
-      await _player.play();
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_kReciter);
+      if (saved == null) return;
+      for (final r in QuranService.reciters) {
+        if (r.code == saved) {
+          reciterCode = r.code;
+          reciterName = r.name;
+          return;
+        }
+      }
     } catch (_) {}
   }
 
-  Future<void> toggle() async {
-    if (_playing) {
-      await _player.pause();
-    } else {
-      await _player.play();
+  void _subscribe(AudioPlayer player) {
+    _stateSub = player.playerStateStream.listen((state) {
+      if (_playing != state.playing) {
+        _playing = state.playing;
+        notifyListeners();
+      }
+    });
+    _processingSub = player.processingStateStream.listen((state) {
+      final buffering = state == ProcessingState.buffering;
+      if (_buffering != buffering) {
+        _buffering = buffering;
+        notifyListeners();
+      }
+    });
+    _positionSub = player.positionStream.listen((p) {
+      _position = p;
+      notifyListeners();
+    });
+    _durationSub = player.durationStream.listen((d) {
+      _duration = d;
+      notifyListeners();
+    });
+    _sequenceSub = player.sequenceStateStream.listen((s) {
+      final index = s.currentIndex;
+      if (index == null) return;
+      final count = s.sequence.length;
+      if (_ayahIndex != index || _ayahCount != count) {
+        _ayahIndex = index;
+        _ayahCount = count;
+        _position = Duration.zero;
+        notifyListeners();
+      }
+    });
+  }
+
+  // ---------- Playback ----------
+
+  Future<void> playSurah(
+    SurahInfo surah, {
+    int fromAyah = 1,
+  }) async {
+    await _ready.future;
+    final handler = _handler;
+    if (handler == null) {
+      _setError('Audio playback is unavailable on this device');
+      return;
+    }
+
+    final token = ++_token;
+    _loading = true;
+    _error = null;
+    radioStation = null;
+    currentSurah = surah;
+    _ayahCount = surah.ayahCount;
+    _ayahIndex = (fromAyah - 1).clamp(0, surah.ayahCount - 1);
+    _position = Duration.zero;
+    _duration = null;
+    notifyListeners();
+
+    try {
+      final recitation = await QuranAudioService.instance
+          .getSurah(surah.number, reciterCode);
+      if (recitation == null || recitation.ayahUrls.isEmpty) {
+        throw const AudioApiException(
+          'Recitation is not available for this surah',
+        );
+      }
+      _throwIfStale(token);
+
+      final startIndex = (fromAyah - 1).clamp(0, recitation.ayahUrls.length - 1);
+      final sources = recitation.ayahUrls
+          .map((url) => AudioSource.uri(Uri.parse(url)))
+          .toList(growable: false);
+
+      _updateMediaItem(
+        id: 'surah_${surah.number}_$reciterCode',
+        title: '${surah.number}. ${surah.nameEn}',
+        subtitle: reciterName,
+        album: 'Quran Recitation',
+      );
+      await handler.playSurahSources(sources, initialIndex: startIndex);
+      await _player?.setLoopMode(_repeatAyah ? LoopMode.one : LoopMode.off);
+      _throwIfStale(token);
+      _loading = false;
+      notifyListeners();
+    } catch (e) {
+      if (_isStale(token)) return;
+      _loading = false;
+      if (e is PlayerInterruptedException) {
+        notifyListeners();
+        return;
+      }
+      currentSurah = null;
+      _setError(e is AudioApiException
+          ? e.message
+          : 'Could not play this surah. Please check your connection and try again.');
     }
   }
 
-  Future<void> stop() async {
-    await _player.stop();
+  Future<void> playRadio(RadioStation station) async {
+    await _ready.future;
+    final handler = _handler;
+    if (handler == null) {
+      _setError('Audio playback is unavailable on this device');
+      return;
+    }
+
+    final token = ++_token;
+    _loading = true;
+    _error = null;
     currentSurah = null;
-    streamUrl = null;
-    streamTitle = null;
-    streamSubtitle = null;
+    _ayahIndex = 0;
+    _ayahCount = 0;
+    _position = Duration.zero;
     _duration = null;
+    radioStation = station;
     notifyListeners();
+
+    try {
+      _updateMediaItem(
+        id: 'radio_${station.id}',
+        title: station.name,
+        subtitle: 'Live Quran Radio',
+        album: 'Quran Radio',
+      );
+      await handler.playLiveUrl(station.url);
+      _throwIfStale(token);
+      _loading = false;
+      notifyListeners();
+    } catch (e) {
+      if (_isStale(token)) return;
+      _loading = false;
+      if (e is PlayerInterruptedException) {
+        notifyListeners();
+        return;
+      }
+      radioStation = null;
+      _setError('Could not tune into this station. Please try again later.');
+    }
+  }
+
+  Future<void> toggle() async {
+    final player = _player;
+    if (player == null) return;
+    if (player.playing) {
+      await _handler?.pause();
+    } else {
+      await _handler?.play();
+    }
   }
 
   Future<void> seek(Duration d) async {
-    await _player.seek(d);
+    final duration = _duration;
+    var target = d;
+    if (duration != null && d > duration) target = duration;
+    if (d.isNegative) target = Duration.zero;
+    await _handler?.seek(target);
+  }
+
+  Future<void> nextAyah() async {
+    await _player?.seekToNext();
+  }
+
+  Future<void> previousAyah() async {
+    await _player?.seekToPrevious();
+  }
+
+  Future<void> nextSurah() async {
+    final surah = currentSurah;
+    if (surah == null || surah.number >= 114) return;
+    await playSurah(QuranService.instance.surah(surah.number + 1));
+  }
+
+  Future<void> previousSurah() async {
+    final surah = currentSurah;
+    if (surah == null || surah.number <= 1) return;
+    await playSurah(QuranService.instance.surah(surah.number - 1));
+  }
+
+  Future<void> setReciter(ReciterChoice reciter) async {
+    if (reciter.code == reciterCode) return;
+    reciterCode = reciter.code;
+    reciterName = reciter.name;
+    notifyListeners();
+    unawaited(_persistReciter(reciter.code));
+    final surah = currentSurah;
+    if (surah != null) {
+      await playSurah(surah, fromAyah: currentAyah);
+    }
+  }
+
+  Future<void> toggleRepeatAyah() async {
+    _repeatAyah = !_repeatAyah;
+    await _player?.setLoopMode(_repeatAyah ? LoopMode.one : LoopMode.off);
+    notifyListeners();
+  }
+
+  Future<void> stop() async {
+    _token++;
+    await _handler?.stop();
+    currentSurah = null;
+    radioStation = null;
+    _ayahIndex = 0;
+    _ayahCount = 0;
+    _position = Duration.zero;
+    _duration = null;
+    _playing = false;
+    _loading = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  // ---------- Internals ----------
+
+  AudioPlayer? get player => _player;
+
+  void _updateMediaItem({
+    required String id,
+    required String title,
+    required String subtitle,
+    required String album,
+  }) {
+    _handler?.mediaItem.add(MediaItem(
+      id: id,
+      album: album,
+      title: title,
+      artist: subtitle,
+      genre: album,
+    ));
+  }
+
+  void _setError(String message) {
+    _error = message;
+    notifyListeners();
+  }
+
+  void _throwIfStale(int token) {
+    if (_isStale(token)) throw PlayerInterruptedException('stale');
+  }
+
+  bool _isStale(int token) => token != _token;
+
+  Future<void> _persistReciter(String code) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kReciter, code);
+    } catch (_) {}
   }
 
   @override
@@ -124,7 +370,9 @@ class AudioPlayerState extends ChangeNotifier {
     _stateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
-    _player.dispose();
+    _sequenceSub?.cancel();
+    _processingSub?.cancel();
+    _player?.dispose();
     super.dispose();
   }
 }

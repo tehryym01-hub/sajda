@@ -2,7 +2,7 @@ name: sajda_dataplus
 description: "Daily Athan: Namaz & Qibla — complete Islamic lifestyle app."
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.12.1
@@ -28,6 +28,7 @@ dependencies:
   flutter_timezone: ^5.1.0
   quran: ^1.4.1
   just_audio: ^0.10.6
+  audio_service: ^0.18.19
   share_plus: ^13.3.0
   wakelock_plus: ^1.7.0
   url_launcher: ^6.3.2

@@ -32,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
       try {
         final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
         await PrayerNotificationService.instance
-            .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes);
+            .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes, city: state.displayCityName);
       } catch (e) {
         if (!context.mounted) return;
         showAppSnack(context, state.t('Could not schedule alerts: ${e.toString()}', 'الرٹس شیڈول نہیں ہوئے: ${e.toString()}'), error: true);
@@ -54,7 +54,7 @@ class SettingsScreen extends StatelessWidget {
     try {
       final times = await ApiClient.instance.getPrayerTimesFor(state, useCache: false);
       await PrayerNotificationService.instance
-          .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes);
+          .scheduleAll(times.prayers, isUrdu: state.isUrdu, prayerModes: state.prayerNotificationModes, city: state.displayCityName);
     } catch (_) {}
   }
 
@@ -157,9 +157,9 @@ class SettingsScreen extends StatelessWidget {
                 value: state.notificationsEnabled,
                 onChanged: (v) => _toggleNotifications(context, v),
               ),
-               if (state.notificationsEnabled) ...[
-                 const Divider(height: 1, indent: 16, endIndent: 16),
-                 const SizedBox(height: 6),
+              if (state.notificationsEnabled) ...[
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                const SizedBox(height: 6),
                 ..._prayerNames.map((p) {
                   final mode = state.prayerNotificationModes[p] ?? 'full';
                   return _PrayerModeTile(
@@ -171,7 +171,25 @@ class SettingsScreen extends StatelessWidget {
                     onChanged: (m) => _setPrayerMode(context, p, m),
                   );
                 }),
-                 const SizedBox(height: 6),
+                const SizedBox(height: 6),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                FutureBuilder<bool>(
+                  future: PrayerNotificationService.instance.exactAlarmsAllowed(),
+                  builder: (ctx, snap) {
+                    final allowed = snap.data ?? true;
+                    return _NavigationTile(
+                      icon: Icons.schedule_rounded,
+                      title: state.t('Exact Azan Timing', 'درست اذان ٹائمنگ'),
+                      subtitle: allowed
+                          ? state.t('On — azan rings at the exact time',
+                              'فعال — اذان ٹھیک وقت پر ہوتی ہے')
+                          : state.t('Off — azan may be a few minutes late. Tap to enable',
+                              'بند — اذان میں تاخیر ہو سکتی ہے۔ فعال کرنے کے لیے ٹیپ کریں'),
+                      onTap: () => PrayerNotificationService.instance.ensureExactAlarms(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 6),
               ],
             ]),
           ),
@@ -192,12 +210,38 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(icon: isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded, title: state.t('Appearance', 'ظاہری')),
           const SizedBox(height: 10),
           _SettingsCard(
-            child: _SwitchTile(
-              icon: isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              title: state.t('Dark Mode', 'ڈارک موڈ'),
-              subtitle: state.t('Toggle dark/light theme', 'ڈارک/لائٹ تھیم تبدیل کریں'),
-              value: state.darkMode,
-              onChanged: (_) => state.toggleDarkMode(),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ThemeOption(
+                      icon: Icons.light_mode_rounded,
+                      label: state.t('Light', 'لائٹ'),
+                      selected: state.themeMode == ThemeMode.light,
+                      onTap: () => state.setThemeMode(ThemeMode.light),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ThemeOption(
+                      icon: Icons.dark_mode_rounded,
+                      label: state.t('Dark', 'ڈارک'),
+                      selected: state.themeMode == ThemeMode.dark,
+                      onTap: () => state.setThemeMode(ThemeMode.dark),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ThemeOption(
+                      icon: Icons.brightness_auto_rounded,
+                      label: state.t('System', 'سسٹم'),
+                      selected: state.themeMode == ThemeMode.system,
+                      onTap: () => state.setThemeMode(ThemeMode.system),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -421,6 +465,62 @@ class _SwitchTile extends StatelessWidget {
               ]),
             ),
             Switch(value: value, onChanged: onChanged, activeThumbColor: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ThemeOption({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = AppColors.accent(isDark);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? accent
+                : (isDark
+                    ? AppColors.darkSurfaceAlt
+                    : AppColors.lightBorder),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: selected ? accent : cs.onSurfaceVariant),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected ? accent : cs.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

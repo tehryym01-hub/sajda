@@ -3,9 +3,11 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
 import '../models/azkar_model.dart';
+import '../services/adhkar_service.dart';
 import '../services/azkar_audio_provider.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/language_switcher.dart';
 
 class ZikrDetailScreen extends StatefulWidget {
   final ZikrCategory category;
@@ -21,7 +23,12 @@ class _ZikrDetailScreenState extends State<ZikrDetailScreen> {
   bool _playing = false;
   bool _loadingAudio = false;
 
-  ZikrCategory get _category => widget.category;
+  ZikrCategory get _category {
+    // Prefer the merged (translated) category from the service; the widget
+    // argument is the fallback captured at navigation time.
+    final service = context.watch<AdhkarService>();
+    return service.byId(widget.category.id) ?? widget.category;
+  }
 
   @override
   void initState() {
@@ -78,11 +85,18 @@ class _ZikrDetailScreenState extends State<ZikrDetailScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final audioProvider = context.watch<AzkarAudioProvider>();
+    final contentLang = state.contentLang;
+    final category = _category;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_category.category, style: const TextStyle(fontFamily: 'serif')),
+        title: Text(category.nameFor(contentLang),
+            style: TextStyle(fontFamily: contentLang == 'ar' ? 'serif' : null)),
         actions: [
+          ContentLanguageMenu(
+            selected: contentLang,
+            onChanged: (code) => context.read<AppState>().setContentLanguage(code),
+          ),
           IconButton(
             onPressed: audioProvider.isAvailable
                 ? () => _toggleAudio(audioProvider)
@@ -102,11 +116,14 @@ class _ZikrDetailScreenState extends State<ZikrDetailScreen> {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _category.items.length,
+        itemCount: category.items.length,
         itemBuilder: (ctx, i) {
-          final item = _category.items[i];
+          final item = category.items[i];
           final done = _counts[item.id] ?? 0;
           final complete = done >= item.count;
+          final translation = contentLang != 'ar' && item.hasTranslation(contentLang)
+              ? item.textFor(contentLang)
+              : null;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: GlassCard(
@@ -127,6 +144,18 @@ class _ZikrDetailScreenState extends State<ZikrDetailScreen> {
                           : const Color(0xFF12352B),
                     ),
                   ),
+                  if (translation != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      translation,
+                      textAlign: contentLang == 'ur' ? TextAlign.right : TextAlign.left,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.7,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [

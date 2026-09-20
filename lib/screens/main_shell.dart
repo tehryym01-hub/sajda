@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../state/app_state.dart';
 import '../state/streak_state.dart';
@@ -24,6 +25,7 @@ import 'names_screen.dart';
 import 'pillars_screen.dart';
 import 'qibla_screen.dart';
 import 'quran_screen.dart';
+import 'radio_screen.dart';
 import 'settings_screen.dart';
 import 'streak_home_screen.dart';
 import 'support_screen.dart';
@@ -41,10 +43,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   DateTime? _lastBackPress;
   static const _pages = [
     HomeScreen(),
+    RadioScreen(),
     StreakHomeScreen(),
     TasbeehScreen(),
     SettingsScreen(),
   ];
+  static const _kExactAlarmPrompted = 'sajda_exact_alarm_prompted';
 
   @override
   void initState() {
@@ -52,6 +56,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleDailyNotifications(context);
+      // Permission requests belong AFTER onboarding/location setup (this
+      // shell is only reachable then), never at cold start.
+      _requestNotificationPermissionIfNeeded(context);
       // FCM registration + tap listeners for authenticated sessions —
       // covers app boot with an existing session (the Streak tab covers
       // the fresh sign-in case).
@@ -59,6 +66,59 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         unawaited(PushService.instance.onSession());
       }
     });
+  }
+
+  /// Runtime notification permission (Android 13+) — asked once per
+  /// session, only when the user actually has prayer alerts enabled.
+  Future<void> _requestNotificationPermissionIfNeeded(BuildContext context) async {
+    try {
+      final state = context.read<AppState>();
+      if (!state.notificationsEnabled) return;
+      await PrayerNotificationService.instance.requestNotificationPermission();
+      if (!mounted) return;
+      await _maybePromptExactAlarms();
+    } catch (_) {}
+  }
+
+  /// One-time explanation before opening the exact-alarm system settings.
+  /// Azan still works without it (inexact fallback) — this is an optional
+  /// precision upgrade, so the user can decline without losing alerts.
+  Future<void> _maybePromptExactAlarms() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kExactAlarmPrompted) ?? false) return;
+    final allowed =
+        await PrayerNotificationService.instance.exactAlarmsAllowed();
+    if (allowed || !mounted) return;
+    await prefs.setBool(_kExactAlarmPrompted, true);
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    final state = context.read<AppState>();
+    await showDialog<void>(
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(state.t('Exact Azan Timing', 'درست اذان ٹائمنگ')),
+        content: Text(state.t(
+          'Allow "Alarms & reminders" in system settings so the azan rings at the exact prayer time. Without it the azan may be a few minutes late.',
+          'سسٹم ترتیبات میں "الارمز اینڈ ریمائنڈرز" کی اجازت دیں تاکہ اذان ٹھیک نماز کے وقت پر ہو۔ اجازت کے بغیر اذان چند منٹ تاخیر سے ہو سکتی ہے۔',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.t('Later', 'بعد میں')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              unawaited(
+                PrayerNotificationService.instance.ensureExactAlarms(),
+              );
+            },
+            child: Text(state.t('Allow', 'اجازت دیں')),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -155,12 +215,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                      backgroundColor: Colors.transparent,
                      elevation: 0,
                      selectedIndex: _index,
-                      onDestinationSelected: (i) {
-                        setState(() => _index = i);
-                        // Returning to the Streak tab must never show
-                        // yesterday's ticks after midnight.
-                        if (i == 1) context.read<StreakState>().refreshIfDayChanged();
-                      },
+                       onDestinationSelected: (i) {
+                         setState(() => _index = i);
+                         // Returning to the Streak tab must never show
+                         // yesterday's ticks after midnight.
+                         if (i == 2) context.read<StreakState>().refreshIfDayChanged();
+                       },
                      indicatorColor: isDark ? AppColors.primary.withValues(alpha: 0.25) : AppColors.primaryLight,
                      indicatorShape: const RoundedRectangleBorder(
                        borderRadius: BorderRadius.all(Radius.circular(18)),
@@ -170,6 +230,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           Icons.home_outlined,
                           Icons.home_rounded,
                           state.t('Home', 'ہوم'),
+                        ),
+                        _tab(
+                          Icons.podcasts_outlined,
+                          Icons.podcasts_rounded,
+                          state.t('Radio', 'ریڈیو'),
                         ),
                         _streakTab(state.t('Streak', 'سٹریک')),
                         _tab(
@@ -270,6 +335,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           isUrdu: state.isUrdu,
           timezone: tz,
           prayerModes: state.prayerNotificationModes,
+          city: state.displayCityName,
         );
       }
       if (state.prayerCheckinEnabled) {
