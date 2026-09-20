@@ -112,7 +112,11 @@ class StreakState extends ChangeNotifier {
   }
 
   Future<bool> _recoverAuth() async {
-    await AuthService.instance.clear();
+    // Keep the deviceId: the server resolves device accounts by it, so the
+    // fallback login re-mints a token for the SAME user. (clear() here used
+    // to destroy the deviceId — the next login then always 404'd on a
+    // fresh random id and locked the user out of their streaks/groups.)
+    await AuthService.instance.clearSession();
     try {
       await AuthService.instance.login();
       _authenticated = AuthService.instance.isAuthenticated;

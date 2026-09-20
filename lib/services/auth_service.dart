@@ -67,6 +67,22 @@ class AuthService {
     await prefs.remove(_kDeviceId);
   }
 
+  /// Clears only the session (token/user), KEEPING the deviceId.
+  ///
+  /// Auth recovery uses this: a rejected/expired token only needs a fresh
+  /// one — wiping the deviceId too used to make the fallback device-login
+  /// mint a brand-new random id the server has never seen (404), locking
+  /// the user out of their account until a full email sign-in.
+  Future<void> clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = null;
+    _userId = null;
+    _displayName = null;
+    await prefs.remove(_kToken);
+    await prefs.remove(_kUserId);
+    await prefs.remove(_kDisplayName);
+  }
+
   Future<String> getDeviceId() async {
     if (_deviceId != null && _deviceId!.isNotEmpty) return _deviceId!;
     final prefs = await SharedPreferences.getInstance();
