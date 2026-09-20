@@ -51,6 +51,7 @@ flutter:
   assets:
     - assets/app_logo.png
     - assets/audio/adhan.ogg
+    - assets/audio/tick.wav
 
 
 flutter_launcher_icons:
