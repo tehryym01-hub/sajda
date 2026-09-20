@@ -199,6 +199,7 @@ class AudioPlayerState extends ChangeNotifier {
     } catch (e) {
       if (_isStale(token)) return;
       _loading = false;
+      _buffering = false;
       if (e is PlayerInterruptedException) {
         notifyListeners();
         return;
@@ -243,6 +244,7 @@ class AudioPlayerState extends ChangeNotifier {
     } catch (e) {
       if (_isStale(token)) return;
       _loading = false;
+      _buffering = false;
       if (e is PlayerInterruptedException) {
         notifyListeners();
         return;
@@ -319,6 +321,10 @@ class AudioPlayerState extends ChangeNotifier {
     _duration = null;
     _playing = false;
     _loading = false;
+    // The processing-state stream may never emit again after an abrupt stop,
+    // leaving `buffering` stuck true — which kept the play-button loader
+    // spinning forever. Reset it explicitly.
+    _buffering = false;
     _error = null;
     notifyListeners();
   }

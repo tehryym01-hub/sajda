@@ -40,6 +40,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   void _onAudioChanged() {
     final audio = context.read<AudioPlayerState>();
+    // Playback fully stopped (X on the mini bar / Stop button / fatal error):
+    // there is nothing to show on this screen anymore — close it.
+    if (!audio.hasAudio) {
+      if (mounted) Navigator.of(context).maybePop();
+      return;
+    }
     final err = audio.error;
     if (err != null && err != _lastError && mounted) {
       _lastError = err;
