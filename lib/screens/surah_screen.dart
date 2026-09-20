@@ -396,6 +396,24 @@ class _SurahScreenState extends State<SurahScreen> {
                 );
               },
             ),
+          // Bismillah header (Al-Fatiha's first verse IS Bismillah and
+          // At-Tawbah has none — the text is stripped from verse 1 of all
+          // other surahs, so show it here like a printed mushaf).
+          if (_surah.number != 1 && _surah.number != 9)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+              child: Text(
+                QuranService.bismillahText,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  height: 1.9,
+                  fontFamily: 'serif',
+                  color: isDark ? AppColors.darkText : const Color(0xFF12352B),
+                ),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               controller: _scroll,
@@ -457,16 +475,19 @@ class _SurahScreenState extends State<SurahScreen> {
                             builder: (context) {
                               final translationProvider = context.watch<QuranTranslationProvider>();
                               final translation = translationProvider.state.translations[ayah];
+                              final isUrdu = state.isUrdu;
                               if (translation != null && translation.isNotEmpty) {
                                 return Text(
                                   translation,
+                                  textAlign: isUrdu ? TextAlign.right : TextAlign.left,
+                                  textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
                                   style: const TextStyle(fontSize: 14, height: 1.6),
                                 );
                               }
                               if (translationProvider.state.availability == QuranTranslationAvailability.loading) {
-                                return const Text(
-                                  'Loading translation...',
-                                  style: TextStyle(fontSize: 14, height: 1.6, color: Colors.grey),
+                                return Text(
+                                  state.t('Loading translation…', 'ترجمہ لوڈ ہو رہا ہے…'),
+                                  style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.grey),
                                 );
                               }
                               return Text(
@@ -497,11 +518,11 @@ class _SurahScreenState extends State<SurahScreen> {
                                 );
                               }
                               if (tafsirProvider.state.availability == TafsirAvailability.loading) {
-                                return const Text(
-                                  'Loading tafsir...',
+                                return Text(
+                                  state.t('Loading tafsir…', 'تفسیر لوڈ ہو رہی ہے…'),
                                   textAlign: TextAlign.right,
                                   textDirection: TextDirection.rtl,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 13.5,
                                     height: 1.8,
                                     color: Colors.grey,

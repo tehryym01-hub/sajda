@@ -51,6 +51,13 @@ class QuranService {
   static final QuranService instance = QuranService._();
   QuranService._();
 
+  /// Exact Bismillah orthography used by the `quran` package (Tanzil text).
+  /// It prefixes verse 1 of every surah except Al-Fatiha (1) and At-Tawbah
+  /// (9). Translations never include it — so verse 1's Arabic (Bismillah +
+  /// "Alif Lam Meem") would not match its translation ("A.L.M."). Stripped
+  /// in [_verseText]; the surah screen shows Bismillah as a header instead.
+  static const String _bismillahPrefix = 'بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ';
+
   static const _kBookmarks = 'sajda_quran_bookmarks';
   static const _kDailyAyah = 'sajda_daily_ayah';
   static const _kDailyAyahTr = 'sajda_daily_ayah_tr';
@@ -87,7 +94,7 @@ class QuranService {
   }
 
   SearchResult _result(int surah, int ayah) {
-    final arabic = q.getVerse(surah, ayah);
+    final arabic = _verseText(surah, ayah);
     return SearchResult(
       surah: surah,
       ayah: ayah,
@@ -160,7 +167,21 @@ class QuranService {
 
   SurahInfo surah(int number) => surahs[number - 1];
 
-  String verseArabic(int surah, int ayah) => q.getVerse(surah, ayah);
+  /// Bismillah for the surah-screen header (same orthography as the text).
+  static String get bismillahText => _bismillahPrefix;
+
+  /// Verse text with the Bismillah prefix removed from verse 1 (except
+  /// Al-Fatiha where it IS verse 1 and At-Tawbah which has none).
+  String _verseText(int surah, int ayah) {
+    final text = q.getVerse(surah, ayah);
+    if (ayah == 1 && surah != 1 && surah != 9 && text.startsWith(_bismillahPrefix)) {
+      final rest = text.substring(_bismillahPrefix.length).trim();
+      if (rest.isNotEmpty) return rest;
+    }
+    return text;
+  }
+
+  String verseArabic(int surah, int ayah) => _verseText(surah, ayah);
 
   /// Verse translations fetched from the backend (public-domain sources:
   /// Yusuf Ali/Pickthall for English, Jalandhari/Junagarhi for Urdu).
@@ -213,7 +234,8 @@ class QuranService {
           results.add(SearchResult(
             surah: s,
             ayah: v,
-            arabic: txt,
+            // display text: Bismillah stripped (matching still uses raw txt)
+            arabic: _verseText(s, v),
             english: '',
             urdu: '',
           ));

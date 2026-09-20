@@ -56,7 +56,7 @@ class AyahNotificationService {
       when = when.add(const Duration(days: 1));
     }
     final (surah, ayah) = QuranService.ayahForDay(dayOfYear);
-    final arabic = q.getVerse(surah, ayah);
+    final arabic = QuranService.instance.verseArabic(surah, ayah);
     final body = arabic.length > 200 ? '${arabic.substring(0, 200)}...' : arabic;
     await _plugin.zonedSchedule(
       id: _baseId,
