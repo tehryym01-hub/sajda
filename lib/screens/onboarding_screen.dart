@@ -455,6 +455,10 @@ class _SlideButtonState extends State<_SlideButton> {
   static const _thumbSize = 50.0;
   static const _trackPadding = 5.0;
 
+  void _onStart(DragStartDetails d) {
+    setState(() => _dragging = true);
+  }
+
   void _onUpdate(DragUpdateDetails d, double maxDrag) {
     setState(() {
       _dragging = true;
@@ -483,13 +487,22 @@ class _SlideButtonState extends State<_SlideButton> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxDrag =
-            constraints.maxWidth - _thumbSize - _trackPadding * 2 - 4;
+            (constraints.maxWidth - _thumbSize - _trackPadding * 2 - 4)
+                .clamp(0.0, double.infinity);
         final progress = maxDrag <= 0 ? 0.0 : (_dx / maxDrag).clamp(0.0, 1.0);
+        final settle = Duration(milliseconds: _dragging ? 0 : 380);
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: _onStart,
           onHorizontalDragUpdate: (d) => _onUpdate(d, maxDrag),
           onHorizontalDragEnd: (_) => _onEnd(maxDrag),
+          onHorizontalDragCancel: () =>
+              setState(() { _dragging = false; _dx = 0; }),
           onTap: widget.onSlideComplete,
           child: Container(
+            // Full-width track: without an explicit width the Stack used to
+            // shrink to the label text, clipping the thumb mid-slide.
+            width: double.infinity,
             height: 60,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.07),
@@ -506,69 +519,94 @@ class _SlideButtonState extends State<_SlideButton> {
                 ),
               ],
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Center label
-                Padding(
-                  padding: const EdgeInsets.only(right: _thumbSize),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: (1 - progress * 1.4).clamp(0.0, 1.0),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.label,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.92),
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28.8),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Gold fill trailing the thumb
+                  AnimatedPositioned(
+                    duration: settle,
+                    curve: Curves.easeOutBack,
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: (_trackPadding + 2 + _dx + _thumbSize / 2)
+                        .clamp(0.0, double.infinity),
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _kGold.withValues(alpha: 0.04 + progress * 0.20),
+                              _kGold.withValues(alpha: 0.04),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Icon(
-                          Icons.keyboard_double_arrow_right_rounded,
-                          color: _kGold.withValues(alpha: 0.9),
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Draggable gold thumb
-                AnimatedPositioned(
-                  duration: Duration(milliseconds: _dragging ? 0 : 380),
-                  curve: Curves.easeOutBack,
-                  left: _trackPadding + 2 + _dx,
-                  top: 4,
-                  child: Container(
-                    width: _thumbSize,
-                    height: _thumbSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: _kGoldGradient,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _kGold.withValues(alpha: 0.55),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Color(0xFF0A2E22),
-                      size: 22,
                     ),
                   ),
-                ),
-              ],
+                  // Center label
+                  Padding(
+                    padding: const EdgeInsets.only(right: _thumbSize),
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: (1 - progress * 1.4).clamp(0.0, 1.0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.label,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Icon(
+                            Icons.keyboard_double_arrow_right_rounded,
+                            color: _kGold.withValues(alpha: 0.9),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Draggable gold thumb
+                  AnimatedPositioned(
+                    duration: settle,
+                    curve: Curves.easeOutBack,
+                    left: _trackPadding + 2 + _dx,
+                    top: 4,
+                    child: Container(
+                      width: _thumbSize,
+                      height: _thumbSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: _kGoldGradient,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kGold.withValues(alpha: 0.55),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Color(0xFF0A2E22),
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
